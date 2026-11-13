@@ -98,7 +98,8 @@ export default {
   rebuildDb: "Rebuild (database only)",
   rebuildWithFilestore: "Rebuild + filestore",
   rebuildSyncRepos: "Sync repositories",
-  rebuildSyncHint: "Pulls the stack's repositories. Turn it off to keep your local branches and changes untouched.",
+  rebuildSyncHint:
+    "Optional: pulls the stack's repositories. It is off by default, so your local branches and changes stay untouched.",
   rebuildNeutralize: "Neutralize database",
   rebuildNeutralizeHint: "Disables emails, crons and external services on the restored copy (Odoo neutralize).",
   rebuildNeutralizeStep: "Neutralizing the database…",

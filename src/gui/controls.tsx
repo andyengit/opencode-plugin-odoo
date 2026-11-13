@@ -1030,7 +1030,7 @@ function AdooAccount(props: { odoo: OdooClient; directory: string }) {
       openRebuildProgress(item)
       return
     }
-    const [syncRepos, setSyncRepos] = createSignal(true)
+    const [syncRepos, setSyncRepos] = createSignal(false)
     const [neutralize, setNeutralize] = createSignal(true)
     ctx.dialogs.open((dialog) => (
       <ctx.ui.Dialog
