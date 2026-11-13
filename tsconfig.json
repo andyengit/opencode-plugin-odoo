@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig.json",
+  "extends": "@tsconfig/bun/tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun", "vite/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "lib": ["ESNext", "dom", "dom.iterable"],
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["index.ts", "src", "vite.config.ts"]
+}

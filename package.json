@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode/plugin-odoo",
+  "version": "0.1.0",
+  "description": "Odoo integration for OpenCode: workspace and odoo.conf management, adoo.live deployments, XML-RPC tools and a Git panel.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andyengit/opencode-plugin-odoo.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./server": "./index.ts",
+    "./gui-experimental": "./dist/gui-experimental.cjs"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bun check --no-script",
+    "typecheck:tsc": "tsc --noEmit",
+    "build:gui": "bun run build-gui.ts",
+    "prepublishOnly": "bun run build:gui"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "^2.2.7 || ^0.0.0-dev",
+    "effect": "^4.0.0",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "^2.2.7",
+    "@tsconfig/bun": "1.0.9",
+    "@types/bun": "1.4.3",
+    "@typescript/native": "npm:typescript@7.1.0-beta",
+    "effect": "4.1.0",
+    "solid-js": "1.9.17",
+    "vite": "7.3.7",
+    "vite-plugin-solid": "2.11.10"
+  }
+}
