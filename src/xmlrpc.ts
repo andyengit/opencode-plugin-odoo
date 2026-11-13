@@ -59,13 +59,20 @@ function readBlock(xml: string, index: number, tag: string): { text: string; end
   return { text: xml.slice(start, end), end: end + close.length }
 }
 
-/** Consumes a `</value>` that follows composite values. */
+/** Consumes the `</value>` that closes a value, leaving the index after it. */
 function closeValue(xml: string, index: number): number {
   const i = skipSpace(xml, index)
   return xml.startsWith("</value>", i) ? i + "</value>".length : i
 }
 
-/** Parses one `<value>` starting at or after `from`. */
+/** Consumes a closing tag such as `</array>` at or after `index`, leaving the index after it. */
+function closeTag(xml: string, index: number, tag: string): number {
+  const i = skipSpace(xml, index)
+  const close = `</${tag}>`
+  return xml.startsWith(close, i) ? i + close.length : i
+}
+
+/** Parses one `<value>` starting at or after `from`. Every branch consumes its own `</value>`. */
 export function parseValueAt(xml: string, from: number): { value: XmlValue; end: number } {
   let i = skipSpace(xml, from)
   const open = xml.indexOf("<value>", i)
@@ -73,32 +80,32 @@ export function parseValueAt(xml: string, from: number): { value: XmlValue; end:
   i = open + "<value>".length
   i = skipSpace(xml, i)
 
-  if (xml.startsWith("<nil/>", i)) return { value: null, end: i + 6 }
+  if (xml.startsWith("<nil/>", i)) return { value: null, end: closeValue(xml, i + 6) }
   if (xml.startsWith("<boolean>", i)) {
     const block = readBlock(xml, i, "boolean")
     const text = block.text.trim().toLowerCase()
-    return { value: text === "1" || text === "true", end: block.end }
+    return { value: text === "1" || text === "true", end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<int>", i) || xml.startsWith("<i4>", i)) {
     const tag = xml.startsWith("<int>", i) ? "int" : "i4"
     const block = readBlock(xml, i, tag)
-    return { value: Number(block.text.trim()), end: block.end }
+    return { value: Number(block.text.trim()), end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<double>", i)) {
     const block = readBlock(xml, i, "double")
-    return { value: Number(block.text.trim()), end: block.end }
+    return { value: Number(block.text.trim()), end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<string>", i)) {
     const block = readBlock(xml, i, "string")
-    return { value: unescapeXml(block.text), end: block.end }
+    return { value: unescapeXml(block.text), end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<dateTime.iso8601>", i)) {
     const block = readBlock(xml, i, "dateTime.iso8601")
-    return { value: block.text.trim(), end: block.end }
+    return { value: block.text.trim(), end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<base64>", i)) {
     const block = readBlock(xml, i, "base64")
-    return { value: block.text.trim(), end: block.end }
+    return { value: block.text.trim(), end: closeValue(xml, block.end) }
   }
   if (xml.startsWith("<array>", i)) {
     let j = skipSpace(xml, expectTag(xml, i, "array"))
@@ -107,7 +114,8 @@ export function parseValueAt(xml: string, from: number): { value: XmlValue; end:
     while (true) {
       j = skipSpace(xml, j)
       if (xml.startsWith("</data>", j)) {
-        return { value: values, end: closeValue(xml, j + "</data>".length) }
+        const afterData = j + "</data>".length
+        return { value: values, end: closeValue(xml, closeTag(xml, afterData, "array")) }
       }
       const parsed = parseValueAt(xml, j)
       values.push(parsed.value)

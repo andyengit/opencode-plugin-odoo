@@ -53,6 +53,56 @@ describe("parseResponse", () => {
     expect(parseResponse(xml)).toEqual([{ id: 1 }, { id: 2 }])
   })
 
+  test("reads nested arrays like a many2one", () => {
+    const xml = response(
+      "<value><array><data><value><array><data><value><int>238</int></value><value><string>Venezuela</string></value></data></array></value></data></array></value>",
+    )
+    expect(parseResponse(xml)).toEqual([[238, "Venezuela"]])
+  })
+
+  test("reads a row with relational fields like search_read", () => {
+    const xml = response(
+      [
+        "<value><array><data><value><struct>",
+        "<member><name>id</name><value><int>7</int></value></member>",
+        "<member><name>name</name><value><string>ACME</string></value></member>",
+        "<member><name>country_id</name><value><array><data><value><int>238</int></value><value><string>Venezuela</string></value></data></array></value></member>",
+        "<member><name>child_ids</name><value><array><data><value><int>8</int></value><value><int>9</int></value></data></array></value></member>",
+        "</struct></value></data></array></value>",
+      ].join(""),
+    )
+    expect(parseResponse(xml)).toEqual([
+      { id: 7, name: "ACME", country_id: [238, "Venezuela"], child_ids: [8, 9] },
+    ])
+  })
+
+  test("reads name_search pairs", () => {
+    const xml = response(
+      [
+        "<value><array><data>",
+        "<value><array><data><value><int>1</int></value><value><string>Partner A</string></value></data></array></value>",
+        "<value><array><data><value><int>2</int></value><value><string>Partner B</string></value></data></array></value>",
+        "</data></array></value>",
+      ].join(""),
+    )
+    expect(parseResponse(xml)).toEqual([
+      [1, "Partner A"],
+      [2, "Partner B"],
+    ])
+  })
+
+  test("reads grouped rows with nested groups", () => {
+    const xml = response(
+      [
+        "<value><array><data><value><struct>",
+        "<member><name>country_id</name><value><array><data><value><int>238</int></value><value><string>Venezuela</string></value></data></array></value></member>",
+        "<member><name>__count</name><value><int>3</int></value></member>",
+        "</struct></value></data></array></value>",
+      ].join(""),
+    )
+    expect(parseResponse(xml)).toEqual([{ country_id: [238, "Venezuela"], __count: 3 }])
+  })
+
   test("throws the fault message", () => {
     const xml = `<?xml version='1.0'?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>1</int></value></member><member><name>faultString</name><value><string>Access Denied</string></value></member></struct></value></fault></methodResponse>`
     expect(() => parseResponse(xml)).toThrow("Access Denied")

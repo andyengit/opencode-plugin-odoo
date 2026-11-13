@@ -82,6 +82,54 @@ agente y añade un **panel de Git** con commits redactados por IA.
 `start`, `stop`, `restart`, `context`, `modules`, `module`, `search`, `update`, `shell`,
 `exec`, `git` y las de XML-RPC.
 
+## XML-RPC: cómo usarlo
+
+El agente nunca ve las credenciales: se guardan en `~/.config/opencode/odoo-rpc.json` (`0600`)
+y se abren por nombre.
+
+1. `rpc_connect` — URL, base, usuario y contraseña o API key (las pide al usuario, no las
+   inventa). Devuelve el `uid` y la versión.
+2. `rpc_saved` / `rpc_use` — abre una conexión ya guardada por su nombre.
+3. `rpc_connections` — lista las abiertas (sin contraseñas).
+4. `rpc_call` — `model`, `method`, `args`, `kwargs`; se traduce a `execute_kw`.
+5. `rpc_search_read` — atajo de `search_read`.
+
+Ejemplo de lectura con relacionales:
+
+```jsonc
+// rpc_connect
+{ "url": "https://erp.cliente.com", "database": "cliente", "username": "admin", "password": "•••" }
+```
+
+```jsonc
+// rpc_call
+{
+  "model": "res.partner",
+  "method": "search_read",
+  "args": [[["is_company", "=", true]], ["name", "country_id", "child_ids", "category_id"]],
+  "kwargs": { "limit": 5 }
+}
+```
+
+Devuelve los relationales completos:
+
+```jsonc
+[
+  { "name": "ACME", "country_id": [238, "Venezuela"], "child_ids": [124], "category_id": [1] }
+]
+```
+
+También funcionan `read_group` (`country_id: [238, "Venezuela"]`), `name_search`
+(`[[28, "A2 Venezuela"]]`), `fields_get` (struct de structs), `read`, `search_count` y
+`web_read`.
+
+- **Solo lectura por defecto**: `search_read`, `read`, `read_group`, `name_search`,
+  `fields_get`, `search_count`, etc. Para `create`, `write`, `unlink` hay que activar
+  **Allow writes** en esa conexión.
+- Referencia oficial (usa la versión mayor de tu workspace, p. ej. `18.0`):
+  `https://www.odoo.com/documentation/<version>/developer/reference/external_api.html`
+
+
 ## Instalación
 
 Clona el repositorio, instala dependencias y genera el bundle de la GUI:
