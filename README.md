@@ -84,24 +84,26 @@ agente y añade un **panel de Git** con commits redactados por IA.
 
 ## Instalación
 
-Con OpenCode 2.x:
+Clona el repositorio, instala dependencias y genera el bundle de la GUI:
+
+```bash
+git clone https://github.com/andyengit/opencode-plugin-odoo.git ~/dev/opencode-plugin-odoo
+cd ~/dev/opencode-plugin-odoo
+bun install
+bun run build:gui
+```
+
+Apunta OpenCode a la carpeta:
 
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
 {
-  "plugin": ["@opencode/plugin-odoo"]
+  "plugin": ["/Users/tu-usuario/dev/opencode-plugin-odoo"]
 }
 ```
 
-Desde el código:
-
-```jsonc
-{
-  "plugin": ["/ruta/a/opencode-plugin-odoo"]
-}
-```
-
-El bundle de la GUI (`dist/gui-experimental.cjs`) se genera con `bun run build:gui`.
+El paquete está pensado para publicarse como `@opencode/plugin-odoo`; hasta entonces, usa la
+ruta local (o `bun pm pack` / instala desde el tag de GitHub).
 
 ## Requisitos
 
