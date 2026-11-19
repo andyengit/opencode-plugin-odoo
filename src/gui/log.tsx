@@ -1,6 +1,27 @@
-import { createSignal, onCleanup, onMount } from "solid-js"
+import { createSignal, Index, onCleanup, onMount } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import type { OdooClient } from "./contract"
+import { logSegments } from "../logs"
+
+/** A colored log body for a `<pre>`: one row per line, keyed by position. */
+export function LogLines(props: { lines: readonly string[] }) {
+  return (
+    <Index each={props.lines}>
+      {(line) => (
+        <div>
+          <Index each={logSegments(line())}>
+            {(segment) => (
+              <span style={{ color: segment().color, "font-weight": segment().bold ? "600" : undefined }}>
+                {segment().text}
+              </span>
+            )}
+          </Index>
+          {line() === "" ? "\u00a0" : ""}
+        </div>
+      )}
+    </Index>
+  )
+}
 
 export function LogView(props: { odoo: OdooClient; directory: string; label: string }) {
   const ctx = usePlugin()
@@ -37,7 +58,7 @@ export function LogView(props: { odoo: OdooClient; directory: string; label: str
         class="text-[12px] whitespace-pre-wrap overflow-auto max-h-[60vh] p-2"
         style={{ "font-family": "var(--font-family-mono, monospace)" }}
       >
-        {text()}
+        <LogLines lines={text().split("\n")} />
       </pre>
     </div>
   )

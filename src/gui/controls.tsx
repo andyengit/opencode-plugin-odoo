@@ -15,7 +15,7 @@ import type {
   WorkspaceSummary,
 } from "./contract"
 import { CONF_KEYS } from "./fields"
-import { LogView } from "./log"
+import { LogLines, LogView } from "./log"
 
 const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
@@ -2990,7 +2990,7 @@ function LogsSection(props: {
         class="text-[11px] whitespace-pre-wrap overflow-auto max-h-[60vh] min-h-40 p-2"
         style={{ "font-family": "var(--font-family-mono, monospace)" }}
       >
-        {lines().join("\n") || "(no output yet)"}
+        <LogLines lines={lines().length === 0 ? ["(no output)"] : lines()} />
       </pre>
     </div>
   )
