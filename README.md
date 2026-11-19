@@ -57,15 +57,19 @@ agente y añade un **panel de Git** con commits redactados por IA.
 
 ### Git
 
-- Panel propio en el sidebar, con lista de repositorios (workspace, `custom`, `repo/<org>/<repo>`).
-- Secciones **Staged** y **Changes**, stage/unstage por archivo y en bloque, colores por tipo
-  de cambio y diff por archivo en un diálogo con líneas coloreadas (incluye archivos nuevos).
-- **Commit** con mensaje multilínea, y botón 🧠 que **solo redacta** el mensaje leyendo el
-  `git diff --staged` (modelo del compositor o el del servidor; si ninguno responde, escribe
-  un mensaje básico con los archivos).
-- **Undo**: `reset --soft HEAD~N` con selector de cuántos commits deshacer; los cambios
-  quedan en Staged.
-- Ramas: cambiar, crear desde otra, y **stash** (push / pop / apply / drop).
+- Panel con cabecera fija: repositorio (lista con búsqueda), rama, upstream, `↑/↓` y
+  **Fetch / Pull (`--ff-only`) / Push**.
+- Secciones **Cambios**, **Historial** y **Stash**, con refresco automático del repo activo.
+- Stage/unstage por archivo y en bloque, stats `+/-`, diff coloreado con ajuste de línea,
+  descartar cambios (con confirmación), copiar ruta y mostrar en el gestor de archivos.
+- **Commit** multilínea con contador, `Cmd/Ctrl+Enter` y botón 🧠 que **solo redacta** el
+  mensaje leyendo el `git diff --staged` (modelo del compositor o el del servidor; si ninguno
+  responde, escribe un mensaje básico con los archivos).
+- **Reglas de commit**: texto libre y/o archivo de skill/contexto por workspace que se añade
+  al prompt de redacción (por ejemplo Conventional Commits, tipos, scopes e idioma).
+- **Historial** con detalle de cada commit y **undo** (`reset --soft HEAD~N`) con selector de
+  cuántos commits deshacer; los cambios quedan en Staged.
+- Ramas: cambiar, crear desde otra, y **stash** (push / pop / apply / drop con confirmación).
 - Herramienta `git` para el agente: `repos`, `status`, `diff`, `stage`, `unstage`, `commit`,
   `checkout`, `create-branch`, `stash`.
 

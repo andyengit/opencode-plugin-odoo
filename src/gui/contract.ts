@@ -121,19 +121,32 @@ export const GitStash = Schema.Struct({
   message: Schema.String,
 })
 
+export const GitStat = Schema.Struct({
+  path: Schema.String,
+  staged: Schema.Boolean,
+  added: Schema.Number,
+  deleted: Schema.Number,
+})
+
 export const GitCommit = Schema.Struct({
   hash: Schema.String,
   subject: Schema.String,
+  author: Schema.String,
+  date: Schema.String,
 })
 
 export const GitState = Schema.Struct({
+  root: Schema.String,
   branch: Schema.String,
   head: Schema.String,
   ahead: Schema.Number,
   behind: Schema.Number,
+  upstream: Schema.String,
+  operation: Schema.String,
   branches: Schema.Array(Schema.String),
   files: Schema.Array(GitFile),
   stash: Schema.Array(GitStash),
+  stats: Schema.Array(GitStat),
 })
 export type GitState = typeof GitState.Type
 
@@ -571,6 +584,39 @@ export const Odoo = Ipc.define({
     gitLog: {
       input: Schema.Struct({ directory: Schema.String, repository: Schema.String, limit: Schema.Number }),
       output: Schema.Struct({ commits: Schema.Array(GitCommit) }),
+    },
+    gitSync: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        repository: Schema.String,
+        action: Schema.Literals(["fetch", "pull", "push"]),
+      }),
+      output: Schema.String,
+    },
+    gitDiscard: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        repository: Schema.String,
+        paths: Schema.Array(Schema.String),
+        untracked: Schema.Boolean,
+      }),
+      output: Schema.String,
+    },
+    gitShow: {
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String, hash: Schema.String }),
+      output: Schema.Struct({ stat: Schema.String, diff: Schema.String }),
+    },
+    gitContext: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.Struct({ text: Schema.String, file: Schema.String, content: Schema.String }),
+    },
+    gitContextSet: {
+      input: Schema.Struct({ directory: Schema.String, text: Schema.String, file: Schema.String }),
+      output: Schema.String,
+    },
+    gitContextFile: {
+      input: Schema.Struct({ directory: Schema.String, file: Schema.String }),
+      output: Schema.Struct({ content: Schema.String }),
     },
     adooRebuild: {
       input: Schema.Struct({

@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { draftCommitMessage, parseAheadBehind, parseGitBranches, parseGitStash, parseGitStatus } from "../src/git"
+import {
+  draftCommitMessage,
+  parseAheadBehind,
+  parseGitBranches,
+  parseGitLog,
+  parseGitNumstat,
+  parseGitStash,
+  parseGitStatus,
+} from "../src/git"
 
 describe("parseGitStatus", () => {
   test("reads staged, unstaged and untracked files", () => {
@@ -46,6 +54,44 @@ describe("parseAheadBehind", () => {
 
   test("falls back to zero without an upstream", () => {
     expect(parseAheadBehind("")).toEqual({ ahead: 0, behind: 0 })
+  })
+})
+
+describe("parseGitNumstat", () => {
+  test("reads added and deleted lines", () => {
+    expect(parseGitNumstat("12\t3\tmodels/partner.py\n0\t9\tviews/partner.xml")).toEqual([
+      { path: "models/partner.py", added: 12, deleted: 3 },
+      { path: "views/partner.xml", added: 0, deleted: 9 },
+    ])
+  })
+
+  test("counts binary files as zero", () => {
+    expect(parseGitNumstat("-\t-\tstatic/img/logo.png")).toEqual([
+      { path: "static/img/logo.png", added: 0, deleted: 0 },
+    ])
+  })
+
+  test("keeps the new name of a renamed file", () => {
+    expect(parseGitNumstat("1\t1\tdir/{old.py => new.py}")[0]?.path).toBe("dir/new.py")
+    expect(parseGitNumstat("2\t0\told.py => new.py")[0]?.path).toBe("new.py")
+  })
+
+  test("ignores blank lines", () => {
+    expect(parseGitNumstat("\n")).toEqual([])
+  })
+})
+
+describe("parseGitLog", () => {
+  test("reads hash, author, date and subject", () => {
+    expect(parseGitLog("1a2b3c4\tAndy\t2 days ago\tfeat: add partner\n5d6e7f8\tAna\t3 hours ago\tfix: typo")).toEqual([
+      { hash: "1a2b3c4", author: "Andy", date: "2 days ago", subject: "feat: add partner" },
+      { hash: "5d6e7f8", author: "Ana", date: "3 hours ago", subject: "fix: typo" },
+    ])
+  })
+
+  test("skips lines without a subject", () => {
+    expect(parseGitLog("")).toEqual([])
+    expect(parseGitLog("1a2b3c4\tAndy\tnow")).toEqual([])
   })
 })
 

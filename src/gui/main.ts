@@ -25,7 +25,7 @@ import { isProcessRunning, restartProcess, runningPid, startProcess, stopProcess
 import { resolveWorkspace, type OdooEnvironment, type OdooWorkspace } from "../workspace"
 import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "../scaffold"
 import { installOdoo, pipInstall, type InstallStep } from "../install"
-import { parseAheadBehind, parseGitBranches, parseGitStash, parseGitStatus } from "../git"
+import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { parseEnvironmentRepos, parseStackRepos, repoFolder, sameCommit, sshUrl } from "../repos"
 import { missingRequirements, parseRequirements } from "../requirements"
@@ -518,6 +518,10 @@ const setup: Plugin.MainSetup = (ctx) => {
   })
   const addonsKnown = ctx.storage.store("addonsKnown", {
     schema: Schema.Record(Schema.String, Schema.Array(Schema.String)),
+    initial: {},
+  })
+  const commitContext = ctx.storage.store("gitCommitContext", {
+    schema: Schema.Record(Schema.String, Schema.Struct({ text: Schema.String, file: Schema.String })),
     initial: {},
   })
   const started = new Set<number>()
@@ -2102,22 +2106,64 @@ const setup: Plugin.MainSetup = (ctx) => {
 
     gitState: async ({ directory, repository }) => {
       const path = await gitRepository(directory, repository)
-      if (!path) return { branch: "", head: "", ahead: 0, behind: 0, branches: [], files: [], stash: [] }
-      const [branch, head, counts, branches, status, stash] = await Promise.all([
+      if (!path) {
+        return {
+          root: "",
+          branch: "",
+          head: "",
+          ahead: 0,
+          behind: 0,
+          upstream: "",
+          operation: "",
+          branches: [],
+          files: [],
+          stash: [],
+          stats: [],
+        }
+      }
+      const [branch, head, counts, upstream, branches, status, stash, staged, worktree, gitDir] = await Promise.all([
         gitText(["rev-parse", "--abbrev-ref", "HEAD"], path),
         gitText(["log", "-1", "--format=%h %s"], path),
         gitText(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], path),
+        gitText(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], path),
         gitText(["for-each-ref", "--format=%(refname:short)", "refs/heads"], path),
         gitText(["status", "--porcelain"], path),
         gitText(["stash", "list", "--format=%gd%x09%s"], path),
+        gitText(["diff", "--cached", "--numstat"], path),
+        gitText(["diff", "--numstat"], path),
+        gitText(["rev-parse", "--absolute-git-dir"], path),
       ])
+      const markers: Array<[string, string]> = [
+        ["MERGE_HEAD", "merge"],
+        ["rebase-merge", "rebase"],
+        ["rebase-apply", "rebase"],
+        ["CHERRY_PICK_HEAD", "cherry-pick"],
+        ["REVERT_HEAD", "revert"],
+        ["BISECT_LOG", "bisect"],
+      ]
+      let operation = ""
+      if (gitDir !== "") {
+        for (const [marker, name] of markers) {
+          if (await pathExists(join(gitDir, marker))) {
+            operation = name
+            break
+          }
+        }
+      }
       return {
+        root: path,
         branch,
         head,
         ...parseAheadBehind(counts),
+        upstream,
+        operation,
         branches: parseGitBranches(branches),
         files: parseGitStatus(status),
         stash: parseGitStash(stash),
+        stats: [
+          ...parseGitNumstat(worktree).map((stat) => ({ ...stat, staged: false })),
+          ...parseGitNumstat(staged).map((stat) => ({ ...stat, staged: true })),
+        ],
       }
     },
 
@@ -2164,15 +2210,83 @@ const setup: Plugin.MainSetup = (ctx) => {
       const repositoryPath = await gitRepository(directory, repository)
       if (!repositoryPath) return { commits: [] }
       const text = await gitText(
-        ["log", `-${Math.min(Math.max(Math.floor(limit), 1), 50)}`, "--format=%h%x09%s"],
+        ["log", `-${Math.min(Math.max(Math.floor(limit), 1), 50)}`, "--format=%h%x09%an%x09%ar%x09%s"],
         repositoryPath,
       )
-      return {
-        commits: text.split("\n").flatMap((line) => {
-          const tab = line.indexOf("\t")
-          return tab < 0 ? [] : [{ hash: line.slice(0, tab), subject: line.slice(tab + 1) }]
-        }),
+      return { commits: parseGitLog(text) }
+    },
+
+    gitSync: async ({ directory, repository, action }) => {
+      const path = await gitRepository(directory, repository)
+      if (!path) return "Not a git repository"
+      if (action === "fetch") return (await git(["fetch", "--prune"], path)) ?? "Fetched"
+      const branch = await gitText(["rev-parse", "--abbrev-ref", "HEAD"], path)
+      if (branch === "" || branch === "HEAD") return "Checkout a branch first"
+      const upstream = await gitText(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], path)
+      if (action === "pull") {
+        if (upstream === "") return "This branch has no upstream to pull from"
+        const counts = parseAheadBehind(
+          await gitText(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], path),
+        )
+        if (counts.behind === 0) return "Already up to date"
+        if (counts.ahead > 0)
+          return `Diverged: ${counts.ahead} ahead and ${counts.behind} behind. Pull needs a manual merge or rebase`
+        return (await git(["pull", "--ff-only"], path)) ?? "Pulled"
       }
+      if (upstream !== "") return (await git(["push"], path)) ?? "Pushed"
+      // Without an upstream, only an unambiguous remote can be chosen for the first push.
+      const remotes = parseGitBranches(await gitText(["remote"], path))
+      if (remotes.length !== 1) return "This branch has no upstream and the repository has several remotes"
+      return (await git(["push", "-u", remotes[0] ?? "origin", branch], path)) ?? `Pushed ${branch} to ${remotes[0]}`
+    },
+
+    gitDiscard: async ({ directory, repository, paths, untracked }) => {
+      const path = await gitRepository(directory, repository)
+      if (!path) return "Not a git repository"
+      if (paths.length === 0) return "Choose the files to discard"
+      return (
+        (await git(untracked ? ["clean", "-f", "-d", "--", ...paths] : ["restore", "--staged", "--worktree", "--", ...paths], path)) ??
+        (untracked ? "Discarded untracked files" : "Discarded changes")
+      )
+    },
+
+    gitShow: async ({ directory, repository, hash }) => {
+      const path = await gitRepository(directory, repository)
+      if (!path) return { stat: "", diff: "" }
+      const stat = await gitText(["show", "--stat", "--format=%h%x09%an%x09%ar%n%s", hash], path)
+      const diff = await gitText(["show", "--format=", "--patch", hash], path)
+      return { stat: stat.slice(0, 6000), diff: diff.slice(0, 60000) }
+    },
+
+    gitContext: async ({ directory }) => {
+      const workspace = await resolveWorkspace(directory)
+      const key = workspace?.root ?? directory
+      const saved = commitContext.value[key]
+      if (!saved) return { text: "", file: "", content: "" }
+      const file =
+        saved.file === "" ? "" : isAbsolute(saved.file) ? saved.file : join(workspace?.root ?? directory, saved.file)
+      const content =
+        file === ""
+          ? ""
+          : (await readFile(file, "utf8").catch(() => "")).slice(0, 16000)
+      return { text: saved.text, file: saved.file, content }
+    },
+
+    gitContextSet: async ({ directory, text, file }) => {
+      const workspace = await resolveWorkspace(directory)
+      const key = workspace?.root ?? directory
+      commitContext.update((draft) => {
+        draft[key] = { text, file }
+      })
+      return "Commit context saved"
+    },
+
+    gitContextFile: async ({ directory, file }) => {
+      const workspace = await resolveWorkspace(directory)
+      const root = workspace?.root ?? directory
+      if (file === "") return { content: "" }
+      const path = isAbsolute(file) ? file : join(root, file)
+      return { content: (await readFile(path, "utf8").catch(() => "")).slice(0, 16000) }
     },
 
     gitStage: async ({ directory, repository, paths }) => {

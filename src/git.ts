@@ -19,6 +19,26 @@ export interface GitStash {
   message: string
 }
 
+export interface GitStat {
+  /** Path inside the repository. */
+  path: string
+  /** Lines added; 0 for binary files. */
+  added: number
+  /** Lines removed; 0 for binary files. */
+  deleted: number
+}
+
+export interface GitCommitEntry {
+  /** Abbreviated hash. */
+  hash: string
+  /** Author name. */
+  author: string
+  /** Relative date, as git writes it. */
+  date: string
+  /** Subject line. */
+  subject: string
+}
+
 /** Reads `git status --porcelain` (v1). */
 export function parseGitStatus(text: string): GitFile[] {
   return text.split("\n").flatMap((line) => {
@@ -65,6 +85,30 @@ export function parseAheadBehind(text: string): { ahead: number; behind: number 
     .split(/\s+/)
     .map((value) => Number(value) || 0)
   return { ahead: ahead ?? 0, behind: behind ?? 0 }
+}
+
+/** Reads `git diff --numstat` and `git diff --cached --numstat`. Binary files report `-` and count as 0. */
+export function parseGitNumstat(text: string): GitStat[] {
+  return text.split("\n").flatMap((line) => {
+    const parts = line.split("\t")
+    if (parts.length < 3) return []
+    const added = Number(parts[0])
+    const deleted = Number(parts[1])
+    const raw = parts.slice(2).join("\t").trim()
+    if (raw === "") return []
+    // Renames show as `old => new` or `dir/{old => new}.py`.
+    const path = raw.replace(/\{(?:[^{}]*) => ([^{}]*)\}/g, "$1").replace(/^.* => /, "")
+    return [{ path, added: Number.isFinite(added) ? added : 0, deleted: Number.isFinite(deleted) ? deleted : 0 }]
+  })
+}
+
+/** Reads `git log --format=%h%x09%an%x09%ar%x09%s`. */
+export function parseGitLog(text: string): GitCommitEntry[] {
+  return text.split("\n").flatMap((line) => {
+    const [hash, author, date, ...subject] = line.split("\t")
+    if (!hash || subject.length === 0) return []
+    return [{ hash, author: author ?? "", date: date ?? "", subject: subject.join("\t") }]
+  })
 }
 
 /**
