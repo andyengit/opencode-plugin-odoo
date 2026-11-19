@@ -23,6 +23,7 @@ export default {
   moduleUpgrade: "Upgrade module",
   moduleTests: "Run module tests",
   moduleInstall: "Install module",
+  moduleName: "Module name",
   dbName: "Database name",
   dbCreate: "Create",
   dbDuplicate: "Duplicate",

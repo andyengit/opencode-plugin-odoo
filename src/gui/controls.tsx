@@ -2538,6 +2538,7 @@ function ModulesSection(props: { odoo: OdooClient; directory: string; label: str
   const [database, setDatabase] = createSignal("")
   const [modules, setModules] = createSignal<Array<{ name: string; state: string; version: string }>>([])
   const [filter, setFilter] = createSignal("")
+  const [manual, setManual] = createSignal("")
   const [status, setStatus] = createSignal<Awaited<ReturnType<OdooClient["moduleStatus"]>> | undefined>()
   const [busy, setBusy] = createSignal("")
 
@@ -2632,6 +2633,24 @@ function ModulesSection(props: { odoo: OdooClient; directory: string; label: str
         />
       </div>
       <ctx.ui.TextInput value={filter()} onInput={setFilter} label={ctx.t("search")} placeholder={ctx.t("search")} />
+      <div class="flex items-center gap-1">
+        <ctx.ui.TextInput
+          value={manual()}
+          onInput={setManual}
+          label={ctx.t("moduleName")}
+          placeholder="mi_modulo"
+          class="flex-1"
+        />
+        <ctx.ui.Button
+          size="small"
+          variant="contrast"
+          disabled={database() === "" || manual().trim() === ""}
+          busy={busy() === `install:${manual()}`}
+          onClick={() => void act(manual().trim(), "install")}
+        >
+          {ctx.t("moduleInstall")}
+        </ctx.ui.Button>
+      </div>
       <Show when={status()?.running}>
         <span class="text-[11px] opacity-60 px-1 truncate">{status()?.message}</span>
       </Show>
