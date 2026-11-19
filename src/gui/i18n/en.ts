@@ -99,6 +99,7 @@ export default {
   depsMissingHint:
     "These Python packages from the repository's requirements.txt are not installed in the version's virtualenv. Use the download button to install them.",
   installDeps: "Install requirements",
+  installAllDeps: "Install missing",
   changes: "Changes",
   changedFiles: "changed",
   noChanges: "No tracked changes",

@@ -1839,9 +1839,39 @@ function AddonsPaths(props: { odoo: OdooClient; directory: string; label: string
     </Show>
   )
 
+  const missing = () => (state()?.active ?? []).filter((item) => item.missing.length > 0)
+
+  const installAll = async () => {
+    const result = await props.odoo
+      .addonsDepsAll({ directory: props.directory, label: props.label })
+      .catch((error: unknown) => ({ started: false, message: String(error) }))
+    if (!result.started) {
+      ctx.toast.show({ title: result.message, variant: "error" })
+      return
+    }
+    loadPython()
+  }
+
   return (
     <div class="flex flex-col gap-1">
-      <span class="text-[11px] opacity-50 px-1">{ctx.t("addonsActive")}</span>
+      <div class="flex items-center gap-1">
+        <span class="text-[11px] opacity-50 px-1 flex-1">{ctx.t("addonsActive")}</span>
+        <Show when={missing().length > 0}>
+          <ctx.ui.Button
+            size="small"
+            variant="ghost"
+            busy={pythonStatus()?.running === true}
+            onClick={() => void installAll()}
+          >
+            {`${ctx.t("installAllDeps")} (${missing().length})`}
+          </ctx.ui.Button>
+        </Show>
+      </div>
+      <Show when={pythonStatus()?.running}>
+        <span class="text-[11px] opacity-60 px-1 truncate">
+          {pythonStatus()?.message || pythonStatus()?.packages || ""}
+        </span>
+      </Show>
       <Show
         when={(state()?.active ?? []).length > 0}
         fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("addonsNone")}</span>}

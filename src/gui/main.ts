@@ -1254,6 +1254,57 @@ const setup: Plugin.MainSetup = (ctx) => {
       return { started: true, message: "" }
     },
 
+    /** Installs the requirements of every active addons path that still has missing packages. */
+    addonsDepsAll: async ({ directory, label }) => {
+      if (pythonJob?.running) return { started: false, message: "A pip install is already running" }
+      const workspace = await resolveWorkspace(directory)
+      const environment = workspace?.environments.find((item) => item.label === label)
+      if (!workspace || !environment) return { started: false, message: "Configuration not found" }
+      const venv = await venvFor(workspace, environment)
+      const runner = venv === "" ? undefined : await pipInstall(venv, [])
+      if (!runner) return { started: false, message: "No virtualenv found for this configuration" }
+      const installed = await installedPackages(venv)
+      const text = await readFile(environment.confPath, "utf8").catch(() => "")
+      const targets: Array<{ path: string; name: string }> = []
+      for (const path of getAddonsPath(parseOdooConfig(text))) {
+        const file = join(path, "requirements.txt")
+        if (!(await pathExists(file))) continue
+        const requirements = await repoRequirements(path)
+        if (requirements.length === 0) continue
+        if (missingRequirements(requirements, installed).length === 0) continue
+        const name = path.startsWith(`${workspace.root}/`) ? path.slice(workspace.root.length + 1) : path
+        targets.push({ path, name })
+      }
+      if (targets.length === 0) return { started: false, message: "Every repository has its requirements installed" }
+
+      const job: PythonJob = {
+        running: true,
+        version: environment.version ?? "venv",
+        packages: targets.map((target) => target.name).join(", "),
+        message: "",
+        startedAt: Date.now(),
+      }
+      pythonJob = job
+      void (async () => {
+        const failures: string[] = []
+        for (const [index, target] of targets.entries()) {
+          job.message = `Installing ${target.name} (${index + 1}/${targets.length})…`
+          const failure = await command(
+            runner.file,
+            [...runner.args, "-r", join(target.path, "requirements.txt")],
+            workspace.root,
+          )
+          if (failure) failures.push(`${target.name}: ${failure}`)
+        }
+        job.running = false
+        job.message =
+          failures.length === 0
+            ? `Installed requirements of ${targets.length} ${targets.length === 1 ? "repository" : "repositories"}`
+            : `${failures.length} of ${targets.length} failed: ${failures.join(" · ")}`
+      })()
+      return { started: true, message: "" }
+    },
+
     postgres: async ({ directory, action }) => {
       const workspace = await resolveWorkspace(directory)
       if (!workspace) return "No Odoo workspace found for this directory"

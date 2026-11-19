@@ -329,6 +329,10 @@ export const Odoo = Ipc.define({
       input: Schema.Struct({ directory: Schema.String, label: Schema.String, path: Schema.String }),
       output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
     },
+    addonsDepsAll: {
+      input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
+      output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
+    },
     postgres: {
       input: Schema.Struct({
         directory: Schema.String,
