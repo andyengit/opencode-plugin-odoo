@@ -1,13 +1,10 @@
 import { Schema } from "effect"
 import {
   Command,
-  ComposerPill,
   createKeyed,
   MenuItem,
   Panel,
   Slot,
-  TitlebarItem,
-  type ComposerPillView,
   type PanelTab,
   type Plugin,
 } from "@opencode/plugin/gui"
@@ -156,28 +153,6 @@ const setup: Plugin.Setup = (ctx) => {
     if (!current) return
     ctx.layout.open("odoo:git", current)
   }
-
-  ctx.add(ComposerPill, {
-    id: "odoo",
-    order: 20,
-    show: (): ComposerPillView => ({
-      label: ctx.t("title"),
-      title: ctx.t("description"),
-      icon: "cube",
-      run: openPanel,
-    }),
-  })
-
-  ctx.add(
-    TitlebarItem,
-    (): TitlebarItem => ({
-      id: "odoo",
-      label: ctx.t("title"),
-      title: ctx.t("description"),
-      icon: "cube",
-      run: () => void openDialog(),
-    }),
-  )
 
   ctx.add(Slot, {
     at: "window.bottom",
