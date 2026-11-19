@@ -1140,7 +1140,7 @@ function AdooAccount(props: { odoo: OdooClient; directory: string }) {
         directory: props.directory,
         environment: item.id,
         stack: item.stack,
-        name: item.label,
+        name: item.url || item.database || item.label,
         filestore,
         repos,
         neutralize,

@@ -8,6 +8,14 @@ describe("databaseName", () => {
     expect(databaseName("Acme Prod", day, "4821")).toBe("acme_prod_20261112_4821")
   })
 
+  test("uses the project URL host, without the scheme, path or port", () => {
+    expect(databaseName("https://poweredbyandy.com", day, "4821")).toBe("poweredbyandy_com_20261112_4821")
+    expect(databaseName("https://erp.brixaglobal.com/web/login?x=1", day, "0420")).toBe(
+      "erp_brixaglobal_com_20261112_0420",
+    )
+    expect(databaseName("http://demo.st4de.com:8071/", day, "9999")).toBe("demo_st4de_com_8071_20261112_9999")
+  })
+
   test("drops accents", () => {
     expect(databaseName("Producción PBA", day, "0420")).toBe("produccion_pba_20261112_0420")
   })

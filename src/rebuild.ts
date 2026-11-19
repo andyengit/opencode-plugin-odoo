@@ -1,16 +1,20 @@
 /** Helpers for rebuilding a local database from an adoo.live database pull. */
 
-/** A safe Odoo database name for a rebuilt copy: `<environment>_<yyyymmdd>_<random>`. */
+/** A safe Odoo database name for a rebuilt copy: `<project url>_<yyyymmdd>_<random>`. */
 export function databaseName(label: string, date: Date, suffix = randomSuffix()): string {
-  const ascii = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  const base =
+  // The rebuild names the copy after the project's site, so a URL keeps its host and drops the scheme and path.
+  const trimmed = label.trim().replace(/^[a-z]+:\/\//i, "").replace(/[/?#].*$/, "")
+  const ascii = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  const sanitized =
     ascii
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "") || "odoo"
+  const base = /^[a-z]/.test(sanitized) ? sanitized : `db_${sanitized}`
   const stamp = date.toISOString().slice(0, 10).replace(/-/g, "")
-  const name = `${base}_${stamp}_${suffix}`
-  return (/^[a-z]/.test(name) ? name : `db_${name}`).slice(0, 63)
+  // Postgres limits an identifier to 63 bytes; trim the host so the date and the random suffix always survive.
+  const tail = `_${stamp}_${suffix}`
+  return `${base.slice(0, 63 - tail.length)}${tail}`
 }
 
 function randomSuffix(): string {
