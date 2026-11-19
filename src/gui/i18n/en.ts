@@ -238,7 +238,7 @@ export default {
   gitCommitHint: "Cmd/Ctrl+Enter",
   gitContext: "Commit rules",
   gitContextTitle: "Commit rules and context",
-  gitContextHint: "Used only to draft commit messages with AI; it is not committed.",
+  gitContextHint: "Used only to draft commit messages with AI in this workspace; it is not committed.",
   gitContextRules: "Rules or context",
   gitContextFile: "Skill or context file",
   gitContextFileHint: "Absolute path or relative to the workspace; its content is added to the draft prompt.",
@@ -259,5 +259,5 @@ export default {
     "Installs a dispatcher in ~/.local/bin that runs the nearest workspace's bin/odoo, so other setups keep working inside their own folders.",
   cliInstall: "Install odoo in PATH",
   gitDraftPrompt:
-    "Write a clear conventional commit message in Spanish for the staged changes below. Reply with the message only: a subject line of at most 72 characters, then an optional body. No code fences and no explanation.",
+    "Write a clear commit message for the staged changes below. Follow the commit rules and project context when provided; otherwise use Conventional Commits in Spanish. Reply with the message only: a subject line of at most 72 characters, then an optional body. No code fences and no explanation.",
 } satisfies Record<string, string>

@@ -78,6 +78,7 @@ export function GitPanel(props: {
   >([])
   const [openStaged, setOpenStaged] = createSignal(true)
   const [openChanges, setOpenChanges] = createSignal(true)
+  const [hasContext, setHasContext] = createSignal(false)
   const [focused, setFocused] = createSignal(false)
   let messageArea: HTMLTextAreaElement | undefined
   let lastDirectory = props.directory
@@ -149,6 +150,10 @@ export function GitPanel(props: {
       setCommits([])
       setState(undefined)
       setSection("changes")
+      void props.odoo
+        .gitContext({ directory: props.directory })
+        .then((value) => setHasContext(value.text.trim() !== "" || value.file !== ""))
+        .catch(() => setHasContext(false))
       void loadRepos()
     },
   )
@@ -171,9 +176,13 @@ export function GitPanel(props: {
     const repositories = setInterval(() => {
       if (!busy()) void loadRepos()
     }, 30000)
+    const history = setInterval(() => {
+      if (section() === "history" && !busy()) loadLog()
+    }, 10000)
     onCleanup(() => {
       clearInterval(states)
       clearInterval(repositories)
+      clearInterval(history)
     })
   })
 
@@ -553,6 +562,7 @@ export function GitPanel(props: {
         const outcome = await props.odoo
           .gitContextSet({ directory: props.directory, text: text(), file: file() })
           .catch((error: unknown) => String(error))
+        setHasContext(text().trim() !== "" || file() !== "")
         ctx.toast.show({ title: outcome })
         dialog.close()
       }
@@ -577,6 +587,7 @@ export function GitPanel(props: {
               aria-label={ctx.t("gitContextRules")}
               placeholder={ctx.t("gitContextExampleText")}
               rows={6}
+              ref={(element) => queueMicrotask(() => element.focus())}
               value={text()}
               onInput={(event) => setText(event.currentTarget.value)}
               onFocus={() => setContextFocused(true)}
@@ -685,7 +696,7 @@ export function GitPanel(props: {
     const stat = () => statFor(file, stagedSide)
     return (
       <div class="group flex items-center gap-1 rounded px-1 py-1 text-xs hover:bg-v2-background-bg-layer-02">
-        <span class="w-4 shrink-0 text-[11px] font-medium" style={{ color: codeColor(file.code) }}>
+        <span class="w-5 shrink-0 text-[11px] font-medium" style={{ color: codeColor(file.code) }}>
           {file.code}
         </span>
         <button
@@ -1005,6 +1016,7 @@ export function GitPanel(props: {
                             label={ctx.t("gitContext")}
                             size="small"
                             variant="ghost"
+                            pressed={hasContext()}
                             onClick={openContext}
                           />
                         </ctx.ui.Tooltip>
