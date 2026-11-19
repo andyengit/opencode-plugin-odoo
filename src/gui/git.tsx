@@ -86,13 +86,13 @@ export function GitPanel(props: {
 
   const staged = () => (state()?.files ?? []).filter((file) => file.staged)
   const changes = () => (state()?.files ?? []).filter((file) => file.worktree)
-  const changedCount = () => state()?.files.length ?? 0
+  const changedCount = () => (state()?.files ?? []).length
   const draftKey = (path: string) => `${props.directory}\n${path}`
   const repoLabel = (path: string) => (path === "" ? ctx.t("gitRoot") : path)
   const repoShort = (path: string) => (path === "" ? ctx.t("gitRoot") : (path.split("/").pop() ?? path))
   const absolute = (path: string) => `${state()?.root ?? ""}/${path}`
   const statFor = (file: GitFile, stagedSide: boolean) =>
-    state()?.stats.find((stat) => stat.path === file.path && stat.staged === stagedSide)
+    (state()?.stats ?? []).find((stat) => stat.path === file.path && stat.staged === stagedSide)
 
   const loadState = () =>
     void props.odoo
@@ -443,7 +443,7 @@ export function GitPanel(props: {
     ctx.dialogs.open((dialog) => (
       <ctx.ui.Dialog
         title={entry.subject || entry.hash}
-        description={`${entry.hash} · ${entry.author} · ${entry.date}`}
+        description={`${entry.hash} · ${[entry.author, entry.date].filter(Boolean).join(" · ")}`}
         size="x-large"
         footer={
           <ctx.ui.Button variant="contrast" onClick={dialog.close}>
@@ -848,9 +848,9 @@ export function GitPanel(props: {
               <>
                 <div class="flex items-center gap-1">
                   <ctx.ui.Select
-                    options={(value().branches.includes(value().branch) || value().branch === ""
-                      ? value().branches
-                      : [value().branch, ...value().branches]
+                    options={((value().branches ?? []).includes(value().branch) || value().branch === ""
+                      ? value().branches ?? []
+                      : [value().branch, ...(value().branches ?? [])]
                     ).map((branch) => ({ value: branch, label: branch }))}
                     value={value().branch || undefined}
                     onChange={(branch) =>
@@ -908,16 +908,21 @@ export function GitPanel(props: {
                   </ctx.ui.Tooltip>
                 </div>
 
-                <Show when={value().operation !== ""}>
+                <Show when={!!value().operation}>
                   <div class="flex items-center gap-1 px-1 text-[11px]" style={{ color: AMBER }}>
                     <ctx.ui.Icon name="warning" size="small" />
-                    {`${ctx.t("gitOperation")}: ${value().operation}`}
+                    {`${ctx.t("gitOperation")}: ${value().operation ?? ""}`}
                   </div>
+                </Show>
+                <Show when={value().operation === undefined}>
+                  <span class="text-[11px] px-1" style={{ color: AMBER }}>
+                    {ctx.t("gitStaleHint")}
+                  </span>
                 </Show>
 
                 <Show when={section() === "changes"}>
                   <Show
-                    when={value().files.length > 0}
+                    when={(value().files ?? []).length > 0}
                     fallback={
                       <div class="flex flex-col items-center gap-2 py-6 text-center">
                         <ctx.ui.Icon name="circle-check" size="large" />
@@ -1102,7 +1107,9 @@ export function GitPanel(props: {
                               </span>
                               <span class="truncate">{entry.subject}</span>
                             </span>
-                            <span class="text-[11px] opacity-40">{`${entry.author} · ${entry.date}`}</span>
+                            <span class="text-[11px] opacity-40">
+                              {[entry.author, entry.date].filter(Boolean).join(" · ")}
+                            </span>
                           </button>
                         )}
                       </For>
@@ -1123,18 +1130,18 @@ export function GitPanel(props: {
                       size="small"
                       variant="contrast"
                       busy={busy() === "stash:push:0"}
-                      disabled={value().files.length === 0}
+                      disabled={(value().files ?? []).length === 0}
                       onClick={() => void stash("push", 0)}
                     >
                       {ctx.t("gitStashPush")}
                     </ctx.ui.Button>
                   </div>
                   <Show
-                    when={value().stash.length > 0}
+                    when={(value().stash ?? []).length > 0}
                     fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("gitNoStash")}</span>}
                   >
                     <div class="flex flex-col gap-0.5">
-                      <For each={value().stash}>
+                      <For each={value().stash ?? []}>
                         {(entry) => (
                           <div class="flex items-center gap-1 rounded px-1 py-1 text-xs hover:bg-v2-background-bg-layer-02">
                             <span class="flex-1 truncate opacity-70" title={entry.message}>

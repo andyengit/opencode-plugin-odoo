@@ -2568,15 +2568,16 @@ function ModulesSection(props: { odoo: OdooClient; directory: string; label: str
 
   const loadDatabases = async () => {
     const result = await props.odoo.databases({ directory: props.directory }).catch(() => ({ databases: [], backups: [] }))
-    setDatabases([...result.databases])
-    if (!result.databases.some((item) => item.name === database())) {
-      setDatabase(result.databases.find((item) => item.name === "db")?.name ?? result.databases[0]?.name ?? "")
+    const list = result.databases ?? []
+    setDatabases([...list])
+    if (!list.some((item) => item.name === database())) {
+      setDatabase(list.find((item) => item.name === "db")?.name ?? list[0]?.name ?? "")
     }
   }
   const loadModules = () =>
     void props.odoo
       .modules({ directory: props.directory, database: database() })
-      .then((result) => setModules([...result.modules]))
+      .then((result) => setModules([...(result.modules ?? [])]))
       .catch(() => setModules([]))
   const loadStatus = () =>
     void props.odoo
@@ -2744,8 +2745,8 @@ function DatabasesSection(props: { odoo: OdooClient; directory: string; label: s
     void props.odoo
       .databases({ directory: props.directory })
       .then((result) => {
-        setDatabases([...result.databases])
-        setBackups([...result.backups])
+        setDatabases([...(result.databases ?? [])])
+        setBackups([...(result.backups ?? [])])
       })
       .catch(() => {
         setDatabases([])
@@ -2931,8 +2932,8 @@ function LogsSection(props: {
     void props.odoo
       .log({ directory: props.directory, label: label() })
       .then((next) => {
-        setText(next.text)
-        setPath(next.path)
+        setText(next?.text ?? "")
+        setPath(next?.path ?? "")
         queueMicrotask(() => {
           if (pre && follow) pre.scrollTop = pre.scrollHeight
         })
@@ -3055,8 +3056,8 @@ function ShellDialog(props: { odoo: OdooClient; directory: string; label: string
     void props.odoo
       .databases({ directory: props.directory })
       .then((result) => {
-        setDatabases([...result.databases])
-        setDatabase(result.databases[0]?.name ?? "")
+        setDatabases([...(result.databases ?? [])])
+        setDatabase((result.databases ?? [])[0]?.name ?? "")
       })
       .catch(() => setDatabases([]))
   })

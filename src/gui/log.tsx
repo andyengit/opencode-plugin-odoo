@@ -33,8 +33,8 @@ export function LogView(props: { odoo: OdooClient; directory: string; label: str
     void props.odoo
       .log({ directory: props.directory, label: props.label })
       .then((next) => {
-        setText(next.text)
-        setPath(next.path)
+        setText(next?.text ?? "")
+        setPath(next?.path ?? "")
         queueMicrotask(() => {
           if (pre) pre.scrollTop = pre.scrollHeight
         })

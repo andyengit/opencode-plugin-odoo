@@ -224,6 +224,7 @@ export default {
   gitPull: "Pull",
   gitPush: "Push",
   gitOperation: "Git operation in progress",
+  gitStaleHint: "The plugin was updated; restart OpenCode to load the new git actions.",
   gitCopyPath: "Copy path",
   gitReveal: "Show in file manager",
   gitDiscard: "Discard changes",
