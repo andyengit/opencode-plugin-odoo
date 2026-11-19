@@ -639,6 +639,10 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                     </ctx.ui.Button>
                   )}
                 </Show>
+
+                <Show when={active()}>
+                  {(label) => <DevMode odoo={props.odoo} directory={props.directory} label={label()} />}
+                </Show>
               </Show>
               </Show>
 
@@ -3080,5 +3084,55 @@ function ShellDialog(props: { odoo: OdooClient; directory: string; label: string
         </Show>
       </div>
     </ctx.ui.Dialog>
+  )
+}
+
+/** The `dev` option of a configuration, as a switch for the common `dev = all` case. */
+function DevMode(props: { odoo: OdooClient; directory: string; label: string }) {
+  const ctx = usePlugin()
+  const [value, setValue] = createSignal("")
+  const [busy, setBusy] = createSignal(false)
+
+  createKeyed(
+    () => props.label,
+    () =>
+      void props.odoo
+        .confValues({ directory: props.directory, label: props.label })
+        .then((next) => setValue(next.dev))
+        .catch(() => setValue("")),
+  )
+
+  const toggle = async (on: boolean) => {
+    const parts = value()
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part !== "")
+      .filter((part) => part !== "all")
+    const next = on ? [...parts, "all"] : parts
+    setBusy(true)
+    const message = await props.odoo
+      .confSet({
+        directory: props.directory,
+        label: props.label,
+        key: "dev",
+        value: next.join(","),
+      })
+      .catch((error: unknown) => String(error))
+    setBusy(false)
+    setValue(next.join(","))
+    ctx.toast.show({ title: message })
+  }
+
+  return (
+    <ctx.ui.Switch
+      label="dev = all"
+      description={ctx.t("devHint")}
+      checked={value()
+        .split(",")
+        .map((part) => part.trim())
+        .includes("all")}
+      disabled={busy()}
+      onChange={(on) => void toggle(on)}
+    />
   )
 }

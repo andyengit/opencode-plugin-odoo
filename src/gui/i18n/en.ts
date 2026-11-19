@@ -42,6 +42,7 @@ export default {
   shellRun: "Run",
   shellCode: "Python code",
   shellPlaceholder: "print(env['res.users'].search_count([]))",
+  devHint: "Reloads Python and assets on change and enables debug assets.",
   errorsOnly: "Only errors",
   installing: "Installing…",
   installCloning: "Cloning Odoo…",
