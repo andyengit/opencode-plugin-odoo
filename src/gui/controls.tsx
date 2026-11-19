@@ -1802,26 +1802,39 @@ function AddonsPaths(props: { odoo: OdooClient; directory: string; label: string
         when={item.missing.length === 0}
         fallback={
           <span class="flex items-center gap-1">
-            <span
-              title={`${ctx.t("depsMissing")}: ${item.missing.slice(0, 6).join(", ")}`}
-              style={{ color: "#f59e0b" }}
+            <ctx.ui.Tooltip
+              placement="top"
+              value={
+                <span class="flex max-w-64 flex-col gap-1">
+                  <span>{`${ctx.t("depsMissing")}: ${item.missing.slice(0, 8).join(", ")}${
+                    item.missing.length > 8 ? "…" : ""
+                  }`}</span>
+                  <span class="opacity-70">{ctx.t("depsMissingHint")}</span>
+                </span>
+              }
             >
-              <ctx.ui.Icon name="circle-exclamation" size="small" />
-            </span>
-            <ctx.ui.IconButton
-              icon="download"
-              label={ctx.t("installDeps")}
-              size="small"
-              variant="ghost"
-              busy={busyPath() === item.path}
-              onClick={() => void installDeps(item.path)}
-            />
+              <span style={{ color: "#f59e0b" }}>
+                <ctx.ui.Icon name="circle-exclamation" size="small" />
+              </span>
+            </ctx.ui.Tooltip>
+            <ctx.ui.Tooltip value={ctx.t("installDeps")}>
+              <ctx.ui.IconButton
+                icon="download"
+                label={ctx.t("installDeps")}
+                size="small"
+                variant="ghost"
+                busy={busyPath() === item.path}
+                onClick={() => void installDeps(item.path)}
+              />
+            </ctx.ui.Tooltip>
           </span>
         }
       >
-        <span title={ctx.t("depsOk")} style={{ color: "#22c55e" }}>
-          <ctx.ui.Icon name="circle-check" size="small" />
-        </span>
+        <ctx.ui.Tooltip value={ctx.t("depsOk")}>
+          <span style={{ color: "#22c55e" }}>
+            <ctx.ui.Icon name="circle-check" size="small" />
+          </span>
+        </ctx.ui.Tooltip>
       </Show>
     </Show>
   )

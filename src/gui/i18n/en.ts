@@ -96,6 +96,8 @@ export default {
   depsInstalled: "installed",
   depsMissing: "missing",
   depsOk: "requirements installed",
+  depsMissingHint:
+    "These Python packages from the repository's requirements.txt are not installed in the version's virtualenv. Use the download button to install them.",
   installDeps: "Install requirements",
   changes: "Changes",
   changedFiles: "changed",
