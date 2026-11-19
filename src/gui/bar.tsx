@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { createKeyed, usePlugin } from "@opencode/plugin/gui"
 import type { OdooClient, WorkspaceStatus, WorkspaceSummary } from "./contract"
 
@@ -80,15 +80,12 @@ export function OdooBar(props: {
       >
         {(workspace) => {
           const active = () => workspace().activeEnvironment || workspace().environments[0] || ""
-          const running = () => {
-            const label = active()
-            return label ? (status()?.environments.find((item) => item.label === label)?.running ?? false) : false
-          }
-          const toggle = () => {
+          const toggle = (label: string, running: boolean) => {
             const dir = directory()
-            const label = active()
-            if (!dir || !label) return
-            return run("odoo", () => props.odoo.odoo({ directory: dir, label, action: running() ? "stop" : "start" }))
+            if (!dir) return
+            return run(`odoo:${label}`, () =>
+              props.odoo.odoo({ directory: dir, label, action: running ? "stop" : "start" }),
+            )
           }
           return (
             <>
@@ -118,13 +115,40 @@ export function OdooBar(props: {
                   />
                 </Show>
 
-                <span
-                  class="inline-block w-2 h-2 rounded-full shrink-0"
-                  style={{ "background-color": running() ? GREEN : GRAY }}
-                />
-                <ctx.ui.Button size="small" busy={busy() === "odoo"} onClick={() => void toggle()}>
-                  {running() ? ctx.t("stop") : ctx.t("start")}
-                </ctx.ui.Button>
+                <span class="shrink-0 text-[11px] opacity-40">{ctx.t("pids")}</span>
+                <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
+                  <For each={status()?.environments ?? []}>
+                    {(item) => (
+                      <button
+                        type="button"
+                        class="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-v2-background-bg-layer-02 disabled:opacity-50"
+                        title={`${item.label}${item.pid > 0 ? ` · pid ${item.pid}` : ""}${
+                          item.port ? ` · :${item.port}` : ""
+                        } — ${item.running ? ctx.t("stop") : ctx.t("start")}`}
+                        disabled={busy() === `odoo:${item.label}`}
+                        onClick={() => void toggle(item.label, item.running)}
+                      >
+                        <span
+                          class="inline-block h-2 w-2 shrink-0 rounded-full"
+                          style={{ "background-color": item.running ? GREEN : GRAY }}
+                        />
+                        <span class="max-w-24 truncate opacity-70">{item.label}</span>
+                        <Show when={item.pid > 0}>
+                          <span
+                            class="opacity-50"
+                            style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                          >
+                            {item.pid}
+                          </span>
+                          <Show when={item.port}>
+                            <span class="opacity-40">{`:${item.port}`}</span>
+                          </Show>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                </div>
+
                 <Show when={workspace().activeHttpPort}>
                   <ctx.ui.Button
                     size="small"

@@ -15,7 +15,14 @@ export type WorkspaceSummary = typeof WorkspaceSummary.Type
 
 export const WorkspaceStatus = Schema.Struct({
   postgres: Schema.Literals(["running", "unhealthy", "stopped", "none"]),
-  environments: Schema.Array(Schema.Struct({ label: Schema.String, running: Schema.Boolean })),
+  environments: Schema.Array(
+    Schema.Struct({
+      label: Schema.String,
+      running: Schema.Boolean,
+      pid: Schema.Number,
+      port: Schema.String,
+    }),
+  ),
 })
 export type WorkspaceStatus = typeof WorkspaceStatus.Type
 

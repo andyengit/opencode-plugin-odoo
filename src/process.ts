@@ -58,14 +58,19 @@ export async function restartProcess(command: string[], options: StartOptions): 
   return startProcess(command, options)
 }
 
-export async function isProcessRunning(pidFile: string): Promise<boolean> {
+/** The pid recorded in a pid file when that process is still alive, else 0. */
+export async function runningPid(pidFile: string): Promise<number> {
   const raw = await readFile(pidFile, "utf8").catch(() => "")
   const pid = Number(raw.trim())
-  if (!pid || Number.isNaN(pid)) return false
+  if (!pid || Number.isNaN(pid)) return 0
   try {
     process.kill(pid, 0)
-    return true
+    return pid
   } catch {
-    return false
+    return 0
   }
+}
+
+export async function isProcessRunning(pidFile: string): Promise<boolean> {
+  return (await runningPid(pidFile)) > 0
 }

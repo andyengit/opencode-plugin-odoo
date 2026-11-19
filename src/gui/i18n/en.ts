@@ -36,6 +36,7 @@ export default {
   launchFailed: "Could not resolve the Odoo launch command.",
   noSession: "Open a project first.",
   postgres: "Postgres",
+  pids: "PIDs",
   running: "Running",
   unhealthy: "Unhealthy",
   stopped: "Stopped",

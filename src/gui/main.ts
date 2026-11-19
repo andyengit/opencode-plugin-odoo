@@ -19,7 +19,7 @@ import {
   setString,
 } from "../config"
 import { environmentLaunchCommand } from "../odoo"
-import { isProcessRunning, restartProcess, startProcess, stopProcess } from "../process"
+import { isProcessRunning, restartProcess, runningPid, startProcess, stopProcess } from "../process"
 import { resolveWorkspace, type OdooEnvironment, type OdooWorkspace } from "../workspace"
 import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "../scaffold"
 import { installOdoo, pipInstall, type InstallStep } from "../install"
@@ -305,10 +305,16 @@ async function postgresState(workspace: OdooWorkspace): Promise<WorkspaceStatus[
 
 async function workspaceStatus(workspace: OdooWorkspace): Promise<WorkspaceStatus> {
   const environments = await Promise.all(
-    workspace.environments.map(async (environment) => ({
-      label: environment.label,
-      running: await isProcessRunning(pidFile(workspace.root, environment.label)),
-    })),
+    workspace.environments.map(async (environment) => {
+      const pid = await runningPid(pidFile(workspace.root, environment.label))
+      const text = await readFile(environment.confPath, "utf8").catch(() => "")
+      return {
+        label: environment.label,
+        running: pid > 0,
+        pid,
+        port: getString(parseOdooConfig(text), "http_port") ?? "",
+      }
+    }),
   )
   return { postgres: await postgresState(workspace), environments }
 }
