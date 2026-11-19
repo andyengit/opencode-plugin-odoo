@@ -182,11 +182,7 @@ const setup: Plugin.Setup = (ctx) => {
   ctx.add(Slot, {
     at: "window.bottom",
     render: () => (
-      <OdooBar
-        odoo={odoo}
-        remembered={remembered}
-        onOpen={(directory) => (directory ? openDialogFor(directory) : void openDialog())}
-      />
+      <OdooBar odoo={odoo} onOpen={(directory) => (directory ? openDialogFor(directory) : void openDialog())} />
     ),
   })
 

@@ -6,18 +6,15 @@ const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
 const GRAY = "#6b7280"
 
-export function OdooBar(props: {
-  odoo: OdooClient
-  remembered: () => string | undefined
-  onOpen: (directory?: string) => void
-}) {
+export function OdooBar(props: { odoo: OdooClient; onOpen: (directory?: string) => void }) {
   const ctx = usePlugin()
   const [summary, setSummary] = createSignal<WorkspaceSummary | null | undefined>(undefined)
   const [status, setStatus] = createSignal<WorkspaceStatus | undefined>(undefined)
   const [processes, setProcesses] = createSignal<Array<{ pid: number; label: string; port: string }>>([])
   const [busy, setBusy] = createSignal<string | undefined>()
 
-  const directory = () => ctx.sessions.current()?.directory || props.remembered()
+  // Only the routed session decides what the bar shows; the remembered workspace is for the "Open Odoo" picker.
+  const directory = () => ctx.sessions.current()?.directory ?? ""
 
   const loadProcesses = () =>
     void props.odoo
