@@ -7,6 +7,8 @@ export default {
   noOdooSource: "Add the Odoo source (odoo/odoo-bin) to start it.",
   create: "Create Odoo environment",
   installOdoo: "Install Odoo",
+  pythonVersion: "Python",
+  pythonAuto: "Automatic (uv default)",
   installing: "Installing…",
   installCloning: "Cloning Odoo…",
   installVenv: "Creating virtualenv…",

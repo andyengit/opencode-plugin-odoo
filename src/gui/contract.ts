@@ -293,7 +293,12 @@ export const Odoo = Ipc.define({
       output: Schema.String,
     },
     install: {
-      input: Schema.Struct({ directory: Schema.String, version: Schema.String, conf: Schema.String }),
+      input: Schema.Struct({
+        directory: Schema.String,
+        version: Schema.String,
+        conf: Schema.String,
+        python: Schema.optional(Schema.String),
+      }),
       output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
     },
     installStatus: {

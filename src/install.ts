@@ -58,7 +58,13 @@ async function findUv(env: NodeJS.ProcessEnv): Promise<string | undefined> {
   return which("uv", env)
 }
 
-async function findPython(env: NodeJS.ProcessEnv): Promise<string | undefined> {
+async function findPython(env: NodeJS.ProcessEnv, requested = ""): Promise<string | undefined> {
+  if (requested !== "") {
+    for (const path of [`/opt/homebrew/bin/python${requested}`, `/usr/local/bin/python${requested}`]) {
+      if (await exists(path)) return path
+    }
+    return which(`python${requested}`, env)
+  }
   const candidates = [
     "/opt/homebrew/bin/python3.12",
     "/usr/local/bin/python3.12",
@@ -103,11 +109,13 @@ export async function installOdoo(
   directory: string,
   version: string,
   onStep: (step: InstallStep) => void = () => undefined,
+  python = "",
 ): Promise<string> {
   const env = buildEnv()
   const major = version.split(".")[0] || version
   const name = `odoo-${major}`
   const target = join(directory, "bin", name)
+  const requested = python.trim()
   await mkdir(join(directory, "bin"), { recursive: true })
 
   if (!(await exists(join(target, "odoo-bin")))) {
@@ -133,12 +141,28 @@ export async function installOdoo(
   onStep("venv")
   const venv = join(target, ".venv")
   const uv = await findUv(env)
+  const existing = await run(
+    join(venv, "bin", "python"),
+    ["-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
+    env,
+  )
+    .then((output) => output.trim(), () => "")
+  // A virtualenv created with another Python is rebuilt when one is chosen explicitly.
+  if (requested !== "" && existing !== "" && !existing.startsWith(requested)) {
+    await rm(venv, { recursive: true, force: true })
+  }
   if (!(await exists(join(venv, "bin", "python")))) {
     if (uv) {
-      await run(uv, ["venv", venv, "--python", "3.12"], env)
+      await run(uv, ["venv", venv, "--python", requested || "3.12"], env)
     } else {
-      const python = await findPython(env)
-      if (!python) throw new Error("Python >= 3.10 not found (install python@3.12 or uv)")
+      const python = await findPython(env, requested)
+      if (!python) {
+        throw new Error(
+          requested !== ""
+            ? `Python ${requested} not found (install it or use uv)`
+            : "Python >= 3.10 not found (install python@3.12 or uv)",
+        )
+      }
       await run(python, ["-m", "venv", venv], env)
     }
   }

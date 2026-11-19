@@ -24,6 +24,16 @@ const GRAY = "#6b7280"
 /** The Odoo series the panel offers to install. */
 const ODOO_VERSIONS = ["15.0", "16.0", "17.0", "18.0", "19.0", "20.0"]
 
+/** The Python versions offered when creating a virtualenv; `uv` downloads the one that is missing. */
+const PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
+
+function pythonOptions(automatic: string) {
+  return [
+    { value: "", label: automatic },
+    ...PYTHON_VERSIONS.map((version) => ({ value: version, label: version })),
+  ]
+}
+
 const CONF_DEFAULTS: Record<(typeof CONF_KEYS)[number], string> = {
   db_host: "localhost",
   db_port: "5432",
@@ -58,6 +68,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
   const [status, setStatus] = createSignal<WorkspaceStatus | undefined>(undefined)
   const [busy, setBusy] = createSignal<string | undefined>()
   const [version, setVersion] = createSignal("18.0")
+  const [python, setPython] = createSignal("")
   const [openValues, setOpenValues] = createSignal(false)
   const [openText, setOpenText] = createSignal(false)
   const [openAdoo, setOpenAdoo] = createSignal(false)
@@ -175,7 +186,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
     const target = version()
     setBusy("install")
     const result = await props.odoo
-      .install({ directory: props.directory, version: target, conf: "" })
+      .install({ directory: props.directory, version: target, conf: "", python: python() || undefined })
       .catch((error: unknown) => ({ started: false, message: String(error) }))
     setBusy(undefined)
     if (!result.started) {
@@ -217,6 +228,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
     const [version, setVersion] = createSignal(
       workspace.environmentVersion || workspace.versions[0]?.name || "install:18.0",
     )
+    const [py, setPy] = createSignal("")
     const create = () => {
       const chosen = name().trim()
       if (chosen === "") return
@@ -228,7 +240,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
         )
         if (series === "") return
         const result = await props.odoo
-          .install({ directory: props.directory, version: series, conf: chosen })
+          .install({ directory: props.directory, version: series, conf: chosen, python: py() || undefined })
           .catch((error: unknown) => ({ started: false, message: String(error) }))
         if (!result.started) {
           ctx.toast.show({ title: result.message, variant: "error" })
@@ -267,6 +279,14 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
             value={version() || undefined}
             onChange={setVersion}
           />
+          <Show when={version().startsWith("install:")}>
+            <ctx.ui.Select
+              label={ctx.t("pythonVersion")}
+              options={pythonOptions(ctx.t("pythonAuto"))}
+              value={py()}
+              onChange={setPy}
+            />
+          </Show>
         </div>
       </ctx.ui.Dialog>
     ))
@@ -414,6 +434,12 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                         {ctx.t("installOdoo")}
                       </ctx.ui.Button>
                     </div>
+                    <ctx.ui.Select
+                      options={pythonOptions(ctx.t("pythonAuto"))}
+                      value={python()}
+                      onChange={setPython}
+                      label={ctx.t("pythonVersion")}
+                    />
                   </div>
                 }
               >

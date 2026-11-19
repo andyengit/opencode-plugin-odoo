@@ -1104,13 +1104,18 @@ const setup: Plugin.MainSetup = (ctx) => {
       return `Added ${merged.keys.join(", ")}`
     },
 
-    install: async ({ directory, version, conf }) => {
+    install: async ({ directory, version, conf, python }) => {
       if (installJob?.running) return { started: false, message: "An installation is already running" }
       const job: InstallJob = { running: true, version, conf, step: "", message: "", startedAt: Date.now() }
       installJob = job
-      void installOdoo(directory, version, (step) => {
-        job.step = step
-      }).then(
+      void installOdoo(
+        directory,
+        version,
+        (step) => {
+          job.step = step
+        },
+        python ?? "",
+      ).then(
         async (message) => {
           job.running = false
           job.step = "done"
