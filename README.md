@@ -69,6 +69,29 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - Herramienta `git` para el agente: `repos`, `status`, `diff`, `stage`, `unstage`, `commit`,
   `checkout`, `create-branch`, `stash`.
 
+### Panel
+
+El panel lateral se organiza en secciones (barra superior del panel):
+
+- **Home** — estado del workspace, Postgres, entorno activo (start/stop/restart/log/URL), instalación de versiones y **Debug**.
+- **Configuration** — `odoo.conf` (valores, secciones como `[queue_job]`, opciones añadidas), addons con requisitos, Python del venv y paquetes.
+- **Modules** — módulos de la base elegida: instalar, actualizar y ejecutar tests.
+- **Database** — bases locales (tamaño y filestore), crear con/sin demo, duplicar, borrar, backup y restore.
+- **Logs** — últimas 200 líneas del entorno con filtro de errores.
+- **adoo.live** y **XML-RPC**.
+
+### Ciclo de desarrollo
+
+- **Install / Upgrade** de un módulo desde el panel (`-i`, `-u`, `--stop-after-init`, `--no-http`) con log en
+  `.odoo-run/<label>-modules.log`.
+- **Tests** de un módulo con `--test-enable --test-tags /<módulo>`.
+- **Odoo shell**: ejecuta Python (`env`, `self`, …) contra la base elegida sin abrir una terminal.
+- **Debug**: arranca Odoo bajo `debugpy` en `127.0.0.1:5678` y añade la configuración `Odoo: attach` a
+  `.vscode/launch.json`.
+- **dev = all** editable como una opción más de la configuración.
+- Bases de datos locales: crear (con demo opcional), duplicar con filestore, borrar, backup `pg_dump -Fc` y
+  restore de `.dump` o `.sql`.
+
 ### Comando `odoo`
 
 - Genera `<workspace>/bin/odoo`, que ejecuta la versión y el `odoo.conf` activos:

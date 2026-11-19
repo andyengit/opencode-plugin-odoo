@@ -329,7 +329,27 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
         />
       </div>
 
-      <Show when={summary() === undefined}>
+      <div class="flex gap-1 overflow-x-auto pb-1">
+        <For each={SECTIONS}>
+          {(item) => (
+            <button
+              type="button"
+              class="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[11px]"
+              classList={{
+                "bg-v2-background-bg-layer-02": section() === item.id,
+                "opacity-55": section() !== item.id,
+              }}
+              onClick={() => setSection(item.id)}
+            >
+              <ctx.ui.Icon name={item.icon} size="small" />
+              {ctx.t(item.label)}
+            </button>
+          )}
+        </For>
+      </div>
+
+      <Show when={section() !== "adoo" && section() !== "rpc"}>
+        <Show when={summary() === undefined}>
         <span class="text-xs opacity-60 px-1">{ctx.t("loading")}</span>
       </Show>
 
@@ -366,36 +386,17 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
             <div class="flex flex-col gap-2">
               <div class="text-[11px] opacity-50 px-1 truncate">{workspace().root}</div>
 
-              <div class="flex gap-1 overflow-x-auto pb-1">
-                <For each={SECTIONS}>
-                  {(item) => (
-                    <button
-                      type="button"
-                      class="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[11px]"
-                      classList={{
-                        "bg-v2-background-bg-layer-02": section() === item.id,
-                        "opacity-55": section() !== item.id,
-                      }}
-                      onClick={() => setSection(item.id)}
-                    >
-                      <ctx.ui.Icon name={item.icon} size="small" />
-                      {ctx.t(item.label)}
-                    </button>
-                  )}
-                </For>
-              </div>
-
               <Show when={section() === "home"}>
                 <Show when={installStatus()?.running}>
                   <div class="flex items-center gap-1">
-                  <span class="text-xs opacity-70 flex-1 truncate">
-                    {`${installStatus()?.version ?? ""} · ${installStep()} · ${installElapsed()}s`}
-                  </span>
-                  <ctx.ui.Button size="small" variant="ghost" onClick={openInstall}>
-                    {ctx.t("progress")}
-                  </ctx.ui.Button>
-                </div>
-              </Show>
+                    <span class="text-xs opacity-70 flex-1 truncate">
+                      {`${installStatus()?.version ?? ""} · ${installStep()} · ${installElapsed()}s`}
+                    </span>
+                    <ctx.ui.Button size="small" variant="ghost" onClick={openInstall}>
+                      {ctx.t("progress")}
+                    </ctx.ui.Button>
+                  </div>
+                </Show>
 
               <Show when={workspace().dockerCompose}>
                 <div class="flex items-center gap-1">
@@ -615,6 +616,30 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                     </ctx.ui.Button>
                   )}
                 </Show>
+
+                <Show when={active()}>
+                  {(label) => (
+                    <ctx.ui.Button
+                      size="small"
+                      variant="ghost"
+                      class="justify-start"
+                      icon="code-lines"
+                      onClick={() =>
+                        ctx.dialogs.open((dialog) => (
+                          <ShellDialog
+                            odoo={props.odoo}
+                            directory={props.directory}
+                            label={label()}
+                            close={dialog.close}
+                          />
+                        ))
+                      }
+                    >
+                      {ctx.t("shell")}
+                    </ctx.ui.Button>
+                  )}
+                </Show>
+              </Show>
               </Show>
 
               <Show when={section() === "config"}>
@@ -659,11 +684,6 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                 </Show>
               </Show>
 
-              <Show when={section() === "adoo"}>
-                <AdooAccount odoo={props.odoo} directory={props.directory} />
-              </Show>
-              </Show>
-
               <Show when={section() === "modules"}>
                 <ModulesSection odoo={props.odoo} directory={props.directory} label={active()} />
               </Show>
@@ -678,6 +698,11 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
             </div>
           )
         }}
+      </Show>
+      </Show>
+
+      <Show when={section() === "adoo"}>
+        <AdooAccount odoo={props.odoo} directory={props.directory} />
       </Show>
 
       <Show when={section() === "rpc"}>
@@ -2935,6 +2960,105 @@ function DebugDialog(props: { odoo: OdooClient; directory: string; label: string
             {ctx.t("debugStop")}
           </ctx.ui.Button>
         </div>
+      </div>
+    </ctx.ui.Dialog>
+  )
+}
+
+function ShellDialog(props: { odoo: OdooClient; directory: string; label: string; close: () => void }) {
+  const ctx = usePlugin()
+  const [databases, setDatabases] = createSignal<Array<{ name: string }>>([])
+  const [database, setDatabase] = createSignal("")
+  const [code, setCode] = createSignal("")
+  const [output, setOutput] = createSignal("")
+  const [busy, setBusy] = createSignal(false)
+  const [focused, setFocused] = createSignal(false)
+
+  onMount(() => {
+    void props.odoo
+      .databases({ directory: props.directory })
+      .then((result) => {
+        setDatabases([...result.databases])
+        setDatabase(result.databases[0]?.name ?? "")
+      })
+      .catch(() => setDatabases([]))
+  })
+
+  const run = async () => {
+    setBusy(true)
+    const text = await props.odoo
+      .shell({ directory: props.directory, label: props.label, database: database(), code: code() })
+      .catch((error: unknown) => String(error))
+    setBusy(false)
+    setOutput(text)
+  }
+
+  return (
+    <ctx.ui.Dialog
+      title={ctx.t("shell")}
+      description={`${props.label} · ${ctx.t("shellHint")}`}
+      size="x-large"
+      footer={
+        <>
+          <ctx.ui.Button variant="ghost" onClick={props.close}>
+            {ctx.t("close")}
+          </ctx.ui.Button>
+          <ctx.ui.Button
+            variant="contrast"
+            busy={busy()}
+            disabled={database() === "" || code().trim() === ""}
+            onClick={() => void run()}
+          >
+            {ctx.t("shellRun")}
+          </ctx.ui.Button>
+        </>
+      }
+    >
+      <div class="flex flex-col gap-3">
+        <ctx.ui.Select
+          options={databases().map((item) => ({ value: item.name, label: item.name }))}
+          value={database() || undefined}
+          onChange={setDatabase}
+          label={ctx.t("tabDatabase")}
+          placeholder={ctx.t("noDatabase")}
+        />
+        <textarea
+          aria-label={ctx.t("shellCode")}
+          placeholder={ctx.t("shellPlaceholder")}
+          rows={6}
+          value={code()}
+          onInput={(event) => setCode(event.currentTarget.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault()
+              void run()
+            }
+          }}
+          style={{
+            "background-color": "var(--v2-background-bg-base)",
+            "box-shadow": "var(--v2-elevation-input)",
+            border: "0",
+            "border-radius": "6px",
+            outline: focused() ? "1px solid var(--v2-border-border-focus)" : "1px solid transparent",
+            "outline-offset": "-1px",
+            padding: "6px 8px",
+            "font-size": "12px",
+            "font-family": "var(--font-family-mono, monospace)",
+            "line-height": "1.4",
+            resize: "vertical",
+            "min-height": "120px",
+          }}
+        />
+        <Show when={output() !== ""}>
+          <pre
+            class="text-[11px] whitespace-pre-wrap overflow-auto max-h-64 p-2"
+            style={{ "font-family": "var(--font-family-mono, monospace)" }}
+          >
+            {output()}
+          </pre>
+        </Show>
       </div>
     </ctx.ui.Dialog>
   )

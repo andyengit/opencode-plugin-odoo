@@ -388,6 +388,15 @@ export const Odoo = Ipc.define({
       input: Schema.Struct({}),
       output: ModuleStatus,
     },
+    shell: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        label: Schema.String,
+        database: Schema.String,
+        code: Schema.String,
+      }),
+      output: Schema.String,
+    },
     debugStart: {
       input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
       output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),

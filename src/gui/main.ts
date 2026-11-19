@@ -1516,22 +1516,37 @@ const setup: Plugin.MainSetup = (ctx) => {
       const created = await runSql(workspace, "postgres", `CREATE DATABASE ${quoteIdentifier(target)}`)
       if (!created.ok) return created.error || "Could not create the database"
       const failure = await commandFromFile(
-        [
-          "docker",
-          "compose",
-          "-f",
-          login.compose,
-          "exec",
-          "-T",
-          login.service,
-          "pg_restore",
-          "-U",
-          login.user,
-          "-d",
-          target,
-          "--no-owner",
-          "--no-privileges",
-        ],
+        file.endsWith(".sql")
+          ? [
+              "docker",
+              "compose",
+              "-f",
+              login.compose,
+              "exec",
+              "-T",
+              login.service,
+              "psql",
+              "-U",
+              login.user,
+              "-d",
+              target,
+            ]
+          : [
+              "docker",
+              "compose",
+              "-f",
+              login.compose,
+              "exec",
+              "-T",
+              login.service,
+              "pg_restore",
+              "-U",
+              login.user,
+              "-d",
+              target,
+              "--no-owner",
+              "--no-privileges",
+            ],
         source,
       )
       return failure ?? `Restored ${file} into ${target}`
@@ -1563,7 +1578,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         "--stop-after-init",
         "--no-http",
       ]
-      if (action === "test") args.push("--test-enable", "--test-tags", "/module")
+      if (action === "test") args.push("--test-enable", "--test-tags", `/${name}`)
       const log = join(workspace.root, ".odoo-run", `${label.replace(/[^a-zA-Z0-9_-]/g, "_")}-modules.log`)
       await mkdir(dirname(log), { recursive: true })
       const job: ModuleJob = {
@@ -1614,6 +1629,48 @@ const setup: Plugin.MainSetup = (ctx) => {
         database: job?.database ?? "",
         message: job?.message ?? "",
       }
+    },
+
+    shell: async ({ directory, label, database, code }) => {
+      const workspace = await resolveWorkspace(directory)
+      const environment = workspace?.environments.find((item) => item.label === label)
+      if (!workspace || !environment) return "Configuration not found"
+      if (database === "") return "Choose a database"
+      if (code.trim() === "") return "Write some Python code"
+      const launch = environmentLaunchCommand(workspace, environment)
+      const [file, bin, ...rest] = launch
+      return new Promise((resolve) => {
+        const child = spawn(
+          file ?? "python3",
+          [bin ?? "", "shell", ...rest, "-d", database, "--shell-interface=python"],
+          { cwd: workspace.root, env: commandEnv(), stdio: ["pipe", "pipe", "pipe"] },
+        )
+        let stdout = ""
+        let stderr = ""
+        const timer = setTimeout(() => child.kill("SIGKILL"), 120000)
+        child.stdout.on("data", (chunk: Buffer) => {
+          stdout = (stdout + chunk.toString()).slice(-20000)
+        })
+        child.stderr.on("data", (chunk: Buffer) => {
+          stderr = (stderr + chunk.toString()).slice(-20000)
+        })
+        child.on("error", (error) => {
+          clearTimeout(timer)
+          resolve(String(error))
+        })
+        child.on("close", () => {
+          clearTimeout(timer)
+          const noise = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ \d+ (INFO|DEBUG) /
+          const errors = stderr
+            .split("\n")
+            .filter((line) => !noise.test(line))
+            .join("\n")
+            .trim()
+          resolve([stdout.trim(), errors].filter((part) => part !== "").join("\n") || "(no output)")
+        })
+        child.stdin.write(`${code}\n`)
+        child.stdin.end()
+      })
     },
 
     debugStart: async ({ directory, label }) => {
