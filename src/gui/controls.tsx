@@ -309,6 +309,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
       <Show when={summary() === null}>
         <div class="flex flex-col gap-2 p-1">
           <span class="text-xs opacity-60">{ctx.t("noWorkspace")}</span>
+          <span class="text-[11px] opacity-40 break-all">{props.directory}</span>
           <ctx.ui.Button
             size="small"
             variant="contrast"

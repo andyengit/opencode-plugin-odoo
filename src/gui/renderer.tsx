@@ -89,14 +89,17 @@ const setup: Plugin.Setup = (ctx) => {
   }
 
   // When a session mounts in an Odoo workspace, show its controls once and share them with the workspace's sessions.
+  // The directory can arrive after the session object (its location loads asynchronously), so it is part of the key.
   createKeyed(
     () => ctx.sessions.current(),
     (session) => {
-      if (!session || opened.has(session.key)) return
+      if (!session || session.directory === "") return
+      const seen = `${session.key}\n${session.directory}`
+      if (opened.has(seen)) return
       void odoo.detect({ directory: session.directory }).then(
         (summary) => {
           if (!summary || ctx.signal.aborted) return
-          opened.add(session.key)
+          opened.add(seen)
           lastDir.set({ dir: session.directory })
           share(session.directory)
           ctx.layout.open("odoo:main", session)
@@ -104,7 +107,7 @@ const setup: Plugin.Setup = (ctx) => {
         () => undefined,
       )
     },
-    { equals: (previous, next) => previous?.key === next?.key },
+    { equals: (previous, next) => previous?.key === next?.key && previous?.directory === next?.directory },
   )
 
   const tab: PanelTab = {

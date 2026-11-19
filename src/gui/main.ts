@@ -898,7 +898,7 @@ const setup: Plugin.MainSetup = (ctx) => {
       const activeHttpPort = environment
         ? (getString(parseOdooConfig(await readFile(environment.confPath, "utf8").catch(() => "")), "http_port") ?? "")
         : ""
-      await syncOdooCli(workspace, environment)
+      await syncOdooCli(workspace, environment).catch(() => undefined)
       return {
         ...summary,
         activeEnvironment: activeLabel,

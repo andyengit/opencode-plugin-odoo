@@ -17,7 +17,7 @@ export function OdooBar(props: {
   const [processes, setProcesses] = createSignal<Array<{ pid: number; label: string; port: string }>>([])
   const [busy, setBusy] = createSignal<string | undefined>()
 
-  const directory = () => ctx.sessions.current()?.directory ?? props.remembered()
+  const directory = () => ctx.sessions.current()?.directory || props.remembered()
 
   const loadProcesses = () =>
     void props.odoo
@@ -96,7 +96,9 @@ export function OdooBar(props: {
       <Show
         when={summary()}
         fallback={
-          <span class="flex-1 opacity-50 truncate">{directory() ? ctx.t("noWorkspace") : ctx.t("pickWorkspace")}</span>
+          <span class="flex-1 opacity-50 truncate">
+            {directory() ? `${ctx.t("noWorkspace")} ${directory()}` : ctx.t("pickWorkspace")}
+          </span>
         }
       >
         {(workspace) => {
