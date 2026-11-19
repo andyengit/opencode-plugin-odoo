@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import { access, appendFile, mkdir, readFile, rm } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { installSkillPack } from "./skillpack"
 
 const OUTPUT_LIMIT = 2400
 
@@ -97,13 +98,13 @@ async function ensureGitignore(directory: string): Promise<void> {
   const file = join(directory, ".gitignore")
   const current = await readFile(file, "utf8").catch(() => "")
   const lines = current.split("\n").map((line) => line.trim())
-  const missing = ["/bin/", "/odoo/"].filter((entry) => !lines.includes(entry))
+  const missing = ["/bin/", "/odoo/", "/.agents/skills/odoo-skills/"].filter((entry) => !lines.includes(entry))
   if (missing.length === 0) return
   const prefix = current.length > 0 && !current.endsWith("\n") ? "\n" : ""
   await appendFile(file, prefix + missing.join("\n") + "\n")
 }
 
-export type InstallStep = "clone" | "venv" | "requirements" | "done"
+export type InstallStep = "clone" | "venv" | "requirements" | "skills" | "done"
 
 export async function installOdoo(
   directory: string,
@@ -187,7 +188,12 @@ export async function installOdoo(
     }
   }
 
+  onStep("skills")
+  const pack = await installSkillPack(directory).catch(
+    (error: unknown) => `skills not updated (${String(error).split("\n").pop()?.trim() || "unknown error"})`,
+  )
+
   await ensureGitignore(directory)
   onStep("done")
-  return `Installed Odoo ${version} in bin/${name} (its own .venv)`
+  return `Installed Odoo ${version} in bin/${name} (its own .venv); ${pack}`
 }

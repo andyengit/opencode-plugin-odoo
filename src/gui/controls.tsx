@@ -168,6 +168,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
     if (step === "clone") return ctx.t("installCloning")
     if (step === "venv") return ctx.t("installVenv")
     if (step === "requirements") return ctx.t("installRequirements")
+    if (step === "skills") return ctx.t("installSkills")
     if (step === "done") return ctx.t("installDone")
     if (step === "error") return ctx.t("installFailed")
     return ctx.t("loading")
@@ -657,6 +658,8 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                 <Show when={active()}>
                   {(label) => <DevMode odoo={props.odoo} directory={props.directory} label={label()} />}
                 </Show>
+
+                <SkillPackRow odoo={props.odoo} directory={props.directory} />
               </Show>
               </Show>
 
@@ -1645,6 +1648,7 @@ function InstallProgress(props: { odoo: OdooClient }) {
     if (step === "clone") return ctx.t("installCloning")
     if (step === "venv") return ctx.t("installVenv")
     if (step === "requirements") return ctx.t("installRequirements")
+    if (step === "skills") return ctx.t("installSkills")
     if (step === "done") return ctx.t("installDone")
     if (step === "error") return ctx.t("installFailed")
     return ctx.t("loading")
@@ -2553,6 +2557,55 @@ function CliDialog(props: { odoo: OdooClient; directory: string; close: () => vo
         )}
       </Show>
     </ctx.ui.Dialog>
+  )
+}
+
+/** The shared Odoo skill pack inside the workspace, with install and update on demand. */
+function SkillPackRow(props: { odoo: OdooClient; directory: string }) {
+  const ctx = usePlugin()
+  const [status, setStatus] = createSignal<Awaited<ReturnType<OdooClient["skillPack"]>> | undefined>()
+  const [busy, setBusy] = createSignal(false)
+
+  const load = () =>
+    void props.odoo
+      .skillPack({ directory: props.directory })
+      .then(setStatus)
+      .catch(() => setStatus(undefined))
+
+  onMount(load)
+
+  const update = async () => {
+    setBusy(true)
+    const message = await props.odoo
+      .skillPackUpdate({ directory: props.directory })
+      .catch((error: unknown) => String(error))
+    setBusy(false)
+    const ok = message.startsWith("Updated") || message.startsWith("Installed")
+    ctx.toast.show({ title: message, variant: ok ? "success" : "error" })
+    load()
+  }
+
+  const action = () => (status()?.installed ? ctx.t("skillPackUpdate") : ctx.t("skillPackInstall"))
+
+  return (
+    <div class="flex items-center gap-1">
+      <ctx.ui.Icon name="graduation-cap" size="small" />
+      <span class="text-[11px] opacity-70 flex-1 px-1 truncate" title={status()?.path}>
+        {status()?.installed
+          ? `${ctx.t("skillPack")} · ${status()?.skills ?? 0} · ${status()?.commit ?? ""}`
+          : ctx.t("skillPackMissing")}
+      </span>
+      <ctx.ui.Tooltip value={action()}>
+        <ctx.ui.IconButton
+          icon={status()?.installed ? "outline-rotate-clockwise" : "download"}
+          label={action()}
+          size="small"
+          variant="ghost"
+          busy={busy()}
+          onClick={() => void update()}
+        />
+      </ctx.ui.Tooltip>
+    </div>
   )
 }
 

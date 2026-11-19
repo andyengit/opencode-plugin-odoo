@@ -103,11 +103,28 @@ El panel lateral se organiza en secciones (barra superior del panel):
 - Botón **odoo command** para instalar un despachador en `~/.local/bin/odoo` que ejecuta el
   `bin/odoo` del workspace más cercano, así varios proyectos conviven sin pisarse.
 
+### Skills y contexto Odoo
+
+- Registra automáticamente el pack [odoo-skills](https://github.com/mart337i/odoo-skills) (21
+  skills de Odoo 17–20, revisión, migración, reportes, OWL, web, tests y planificación) en cada
+  sesión de un workspace Odoo. Prioridad de packs: opción `skills` del plugin, copia del
+  proyecto, copia empaquetada en `skills/` y pack en `~/.agents/skills`.
+- **Instala el pack en cada proyecto**: al instalar Odoo (y a demanda desde el panel) clona
+  `mart337i/odoo-skills` en `<workspace>/.agents/skills/odoo-skills` y lo actualiza con
+  `pull --ff-only`; la carpeta queda en el `.gitignore` del proyecto.
+- **Estado en el panel (Home)**: muestra el pack con número de skills y último commit, con
+  botones para instalarlo o actualizarlo cuando quieras.
+- Genera la skill `odoo-workspace` con el root, las versiones, las configuraciones, los
+  `addons_path` y los valores recomendados del proyecto abierto.
+- Exporta `ODOO_SOURCE`, `ODOO_BASE_COMMAND` y `ODOO_TOOL_README` al proceso para que `exec` y la
+  shell los vean. Respeta las variables que hayas exportado tú y actualiza las que puso el
+  plugin al cambiar de workspace; `recommend` las recalcula a demanda. `context` las muestra.
+
 ### Herramientas del agente (namespace `odoo`)
 
 `detect`, `init`, `install`, `conf_get`, `conf_set`, `addons_path_add`, `get`, `postgres`,
-`start`, `stop`, `restart`, `context`, `modules`, `module`, `search`, `update`, `shell`,
-`exec`, `git` y las de XML-RPC.
+`start`, `stop`, `restart`, `context`, `recommend`, `modules`, `module`, `search`, `update`,
+`shell`, `exec`, `git` y las de XML-RPC.
 
 ## XML-RPC: cómo usarlo
 

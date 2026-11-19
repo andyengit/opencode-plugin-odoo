@@ -25,6 +25,7 @@ import { isProcessRunning, restartProcess, runningPid, startProcess, stopProcess
 import { resolveWorkspace, type OdooEnvironment, type OdooWorkspace } from "../workspace"
 import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "../scaffold"
 import { installOdoo, pipInstall, type InstallStep } from "../install"
+import { installSkillPack, skillPackStatus } from "../skillpack"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { parseEnvironmentRepos, parseStackRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -1683,6 +1684,18 @@ const setup: Plugin.MainSetup = (ctx) => {
         database: job?.database ?? "",
         message: job?.message ?? "",
       }
+    },
+
+    skillPack: async ({ directory }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { installed: false, path: "", branch: "", commit: "", skills: 0 }
+      return skillPackStatus(workspace.root)
+    },
+
+    skillPackUpdate: async ({ directory }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return "No Odoo workspace found for this directory"
+      return installSkillPack(workspace.root)
     },
 
     shell: async ({ directory, label, database, code }) => {

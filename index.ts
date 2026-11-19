@@ -13,6 +13,8 @@ import { installOdoo } from "./src/install"
 import { scanModules, type OdooModule } from "./src/modules"
 import { parseGitStatus } from "./src/git"
 import { runProcess, type RunResult } from "./src/execute"
+import { applyRecommendation, recommend, workspaceSkill } from "./src/recommend"
+import { loadSkillPack, skillInfo } from "./src/skills"
 import {
   rpcCall,
   rpcConnect,
@@ -214,6 +216,40 @@ export default Plugin.define({
   id: "odoo",
   async setup(ctx) {
     const directory = ctx.location.directory
+    const canonical = ctx.location.project.canonical
+    const customSkills = typeof ctx.options.skills === "string" ? ctx.options.skills : undefined
+    let packRegistered = false
+
+    // Worktrees get their own location, but the Odoo workspace lives in the canonical project, so the
+    // recommendation is the same for every session of the project.
+    const resolveProject = async (start: string) =>
+      (await resolveWorkspace(canonical).catch(() => undefined)) ?? (await resolveWorkspace(start).catch(() => undefined))
+
+    // The recommendation depends on the workspace open in each session, so it is recomputed when a
+    // session appears instead of being frozen at startup.
+    const configure = async (start: string) => {
+      const workspace = await resolveProject(start)
+      if (!workspace) return
+      const recommendation = await recommend(workspace)
+      applyRecommendation(recommendation)
+      // A workspace with its own `.agents/skills/odoo-skills` clone wins over the bundled copy.
+      const pack = await loadSkillPack(customSkills, workspace.root)
+      const generated = skillInfo(workspaceSkill(workspace, recommendation))
+      await ctx.skill.transform((editor) => {
+        if (!packRegistered) {
+          for (const skill of pack) editor.add(skillInfo(skill))
+          packRegistered = true
+        }
+        editor.add(generated)
+      })
+    }
+
+    await configure(directory)
+    void (async () => {
+      for await (const event of ctx.event.subscribe({ types: ["session.created"] })) {
+        await configure(event.data.location.directory).catch(() => undefined)
+      }
+    })().catch(() => undefined)
 
     await ctx.tool.transform((tools) => {
       tools.namespace({ name: "odoo", description: "Manage the Odoo workspace of this project." })
@@ -379,12 +415,20 @@ export default Plugin.define({
             const suffix = environment.active ? " [active]" : ""
             return `- ${environment.label}${suffix} version=${environment.version ?? "?"} conf=${environment.confPath}`
           })
+          const recommendation = await recommend(workspace)
+          const recommended = [
+            recommendation.source ? `- ODOO_SOURCE=${recommendation.source}` : "- ODOO_SOURCE=(not detected)",
+            recommendation.baseCommand ? `- ODOO_BASE_COMMAND=${recommendation.baseCommand}` : "- ODOO_BASE_COMMAND=(not detected)",
+            recommendation.toolReadme ? `- ODOO_TOOL_README=${recommendation.toolReadme}` : "- ODOO_TOOL_README=(not detected)",
+          ]
           return {
             content: [
               `Workspace: ${workspace.root}`,
               `Versions: ${workspace.versions.map((version) => `${version.name} (${version.series})`).join(", ") || "none"}`,
               `Configurations (${configurations.length}):`,
               ...configurations,
+              `Recommended environment:`,
+              ...recommended,
               `Active addons paths (${paths.length}):`,
               ...paths.slice(0, 30).map((path) => `- ${path}`),
               `Modules: ${modules.length}`,
@@ -394,6 +438,20 @@ export default Plugin.define({
               ...(errors.length > 0 ? errors : ["(none)"]),
             ].join("\n"),
           }
+        },
+      })
+
+      tools.add({
+        name: "recommend",
+        description:
+          "Recompute the recommended Odoo environment for this workspace (ODOO_SOURCE, ODOO_BASE_COMMAND, ODOO_TOOL_README) and export it for shell commands. Use force=false to keep values you exported yourself.",
+        input: Schema.Struct({ force: Schema.optional(Schema.Boolean) }),
+        execute: async ({ force }) => {
+          const workspace = await resolveProject(directory)
+          if (!workspace) return { content: "No Odoo workspace found for this project." }
+          const recommendation = await recommend(workspace)
+          const environment = applyRecommendation(recommendation, { force: force ?? true })
+          return { content: json({ ...recommendation, environment }) }
         },
       })
 

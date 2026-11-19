@@ -153,7 +153,7 @@ export type GitState = typeof GitState.Type
 export const InstallStatus = Schema.Struct({
   running: Schema.Boolean,
   version: Schema.String,
-  step: Schema.Literals(["", "clone", "venv", "requirements", "done", "error"]),
+  step: Schema.Literals(["", "clone", "venv", "requirements", "skills", "done", "error"]),
   message: Schema.String,
   startedAt: Schema.Number,
 })
@@ -224,6 +224,14 @@ export const ModuleStatus = Schema.Struct({
   module: Schema.String,
   database: Schema.String,
   message: Schema.String,
+})
+
+export const SkillPackStatus = Schema.Struct({
+  installed: Schema.Boolean,
+  path: Schema.String,
+  branch: Schema.String,
+  commit: Schema.String,
+  skills: Schema.Number,
 })
 
 export const RebuildStatus = Schema.Struct({
@@ -400,6 +408,14 @@ export const Odoo = Ipc.define({
     moduleStatus: {
       input: Schema.Struct({}),
       output: ModuleStatus,
+    },
+    skillPack: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: SkillPackStatus,
+    },
+    skillPackUpdate: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.String,
     },
     shell: {
       input: Schema.Struct({
