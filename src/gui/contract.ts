@@ -26,6 +26,12 @@ export const WorkspaceStatus = Schema.Struct({
 })
 export type WorkspaceStatus = typeof WorkspaceStatus.Type
 
+export const OdooProcess = Schema.Struct({
+  pid: Schema.Number,
+  label: Schema.String,
+  port: Schema.String,
+})
+
 export const AdooItem = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
@@ -336,6 +342,14 @@ export const Odoo = Ipc.define({
     },
     odooCliInstall: {
       input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.String,
+    },
+    odooProcesses: {
+      input: Schema.Struct({}),
+      output: Schema.Struct({ processes: Schema.Array(OdooProcess) }),
+    },
+    odooKill: {
+      input: Schema.Struct({ pid: Schema.Number }),
       output: Schema.String,
     },
     adooStatus: {

@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 import { Schema } from "effect"
 import type { Plugin } from "@opencode/plugin/gui/main"
 import { CLI_MARKER, cliDispatcher, cliLauncher, cliState } from "../cli"
+import { parseProcesses } from "../ps"
 import { parseComposePs, parseDockerCompose, postgresCommands, postgresStatus } from "../docker"
 import {
   applyConfigLines,
@@ -937,6 +938,49 @@ const setup: Plugin.MainSetup = (ctx) => {
       if ((await readlink(target).catch(() => "")) !== "") await rm(target, { force: true })
       await writeIfChanged(target, cliDispatcher(), 0o755)
       return `Installed ${target}`
+    },
+
+    /** Every Odoo process on the machine, read from `ps`; no workspace needed. */
+    odooProcesses: async () => {
+      const output = await execFileAsync("ps", ["-Ao", "pid=,command="], {
+        env: commandEnv(),
+        maxBuffer: 8 * 1024 * 1024,
+      }).then(
+        (result) => result.stdout,
+        () => "",
+      )
+      const processes = await Promise.all(
+        parseProcesses(output).map(async (item) => {
+          const text = item.conf === "" ? "" : await readFile(item.conf, "utf8").catch(() => "")
+          return {
+            pid: item.pid,
+            label: item.label,
+            port: text === "" ? "" : (getString(parseOdooConfig(text), "http_port") ?? ""),
+          }
+        }),
+      )
+      return { processes }
+    },
+
+    odooKill: async ({ pid }) => {
+      if (!Number.isInteger(pid) || pid <= 0) return "Invalid pid"
+      const send = (target: number) => {
+        try {
+          process.kill(target, "SIGTERM")
+          return true
+        } catch {
+          return false
+        }
+      }
+      // Our Odoo starts detached: signalling the group also stops its workers.
+      if (send(-pid) || send(pid)) return `Stopped pid ${pid}`
+      let alive = true
+      try {
+        process.kill(pid, 0)
+      } catch {
+        alive = false
+      }
+      return alive ? `Could not stop pid ${pid}` : `Process ${pid} was already gone`
     },
 
     status: async ({ directory }): Promise<WorkspaceStatus> => {

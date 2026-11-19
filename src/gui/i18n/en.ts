@@ -37,6 +37,7 @@ export default {
   noSession: "Open a project first.",
   postgres: "Postgres",
   pids: "PIDs",
+  noProcesses: "No Odoo processes",
   running: "Running",
   unhealthy: "Unhealthy",
   stopped: "Stopped",

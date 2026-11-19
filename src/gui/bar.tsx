@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js"
+import { createSignal, onCleanup, onMount, Show } from "solid-js"
 import { createKeyed, usePlugin } from "@opencode/plugin/gui"
 import type { OdooClient, WorkspaceStatus, WorkspaceSummary } from "./contract"
 
@@ -14,11 +14,20 @@ export function OdooBar(props: {
   const ctx = usePlugin()
   const [summary, setSummary] = createSignal<WorkspaceSummary | null | undefined>(undefined)
   const [status, setStatus] = createSignal<WorkspaceStatus | undefined>(undefined)
+  const [processes, setProcesses] = createSignal<Array<{ pid: number; label: string; port: string }>>([])
   const [busy, setBusy] = createSignal<string | undefined>()
 
   const directory = () => ctx.sessions.current()?.directory ?? props.remembered()
 
+  const loadProcesses = () =>
+    void props.odoo
+      .odooProcesses({})
+      .then((result) => setProcesses([...result.processes]))
+      .catch(() => setProcesses([]))
+
   const load = () => {
+    // The process list does not need a workspace: it reads the system's processes.
+    loadProcesses()
     const dir = directory()
     if (!dir) {
       setSummary(undefined)
@@ -68,6 +77,18 @@ export function OdooBar(props: {
     return GRAY
   }
 
+  const processItems = () => {
+    const list = processes()
+    if (list.length === 0) {
+      return [{ label: ctx.t("noProcesses"), disabled: true, icon: "info" as const, onSelect: () => undefined }]
+    }
+    return list.map((item) => ({
+      label: `${item.pid} · ${item.label}${item.port ? ` · :${item.port}` : ""}`,
+      icon: "trash" as const,
+      onSelect: () => void run(`kill:${item.pid}`, () => props.odoo.odooKill({ pid: item.pid })),
+    }))
+  }
+
   return (
     <div class="flex items-center gap-2 border-t border-v2-border-border-muted px-3 py-1 text-xs">
       <span class="font-medium opacity-70">{ctx.t("title")}</span>
@@ -80,12 +101,15 @@ export function OdooBar(props: {
       >
         {(workspace) => {
           const active = () => workspace().activeEnvironment || workspace().environments[0] || ""
-          const toggle = (label: string, running: boolean) => {
+          const running = () => {
+            const label = active()
+            return label ? (status()?.environments.find((item) => item.label === label)?.running ?? false) : false
+          }
+          const toggle = () => {
             const dir = directory()
-            if (!dir) return
-            return run(`odoo:${label}`, () =>
-              props.odoo.odoo({ directory: dir, label, action: running ? "stop" : "start" }),
-            )
+            const label = active()
+            if (!dir || !label) return
+            return run("odoo", () => props.odoo.odoo({ directory: dir, label, action: running() ? "stop" : "start" }))
           }
           return (
             <>
@@ -115,40 +139,13 @@ export function OdooBar(props: {
                   />
                 </Show>
 
-                <span class="shrink-0 text-[11px] opacity-40">{ctx.t("pids")}</span>
-                <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
-                  <For each={status()?.environments ?? []}>
-                    {(item) => (
-                      <button
-                        type="button"
-                        class="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-v2-background-bg-layer-02 disabled:opacity-50"
-                        title={`${item.label}${item.pid > 0 ? ` · pid ${item.pid}` : ""}${
-                          item.port ? ` · :${item.port}` : ""
-                        } — ${item.running ? ctx.t("stop") : ctx.t("start")}`}
-                        disabled={busy() === `odoo:${item.label}`}
-                        onClick={() => void toggle(item.label, item.running)}
-                      >
-                        <span
-                          class="inline-block h-2 w-2 shrink-0 rounded-full"
-                          style={{ "background-color": item.running ? GREEN : GRAY }}
-                        />
-                        <span class="max-w-24 truncate opacity-70">{item.label}</span>
-                        <Show when={item.pid > 0}>
-                          <span
-                            class="opacity-50"
-                            style={{ "font-family": "var(--font-family-mono, monospace)" }}
-                          >
-                            {item.pid}
-                          </span>
-                          <Show when={item.port}>
-                            <span class="opacity-40">{`:${item.port}`}</span>
-                          </Show>
-                        </Show>
-                      </button>
-                    )}
-                  </For>
-                </div>
-
+                <span
+                  class="inline-block w-2 h-2 rounded-full shrink-0"
+                  style={{ "background-color": running() ? GREEN : GRAY }}
+                />
+                <ctx.ui.Button size="small" busy={busy() === "odoo"} onClick={() => void toggle()}>
+                  {running() ? ctx.t("stop") : ctx.t("start")}
+                </ctx.ui.Button>
                 <Show when={workspace().activeHttpPort}>
                   <ctx.ui.Button
                     size="small"
@@ -166,6 +163,13 @@ export function OdooBar(props: {
         }}
       </Show>
 
+      <span class="flex-1" />
+      <ctx.ui.Menu
+        label={`${ctx.t("pids")} (${processes().length})`}
+        trigger="button"
+        icon="trash"
+        items={processItems()}
+      />
       <ctx.ui.Button size="small" variant="ghost" onClick={() => props.onOpen(directory())}>
         {ctx.t("command")}
       </ctx.ui.Button>
