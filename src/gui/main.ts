@@ -188,6 +188,21 @@ async function gitRepository(directory: string, repository: string): Promise<str
   return path
 }
 
+/** Resolves a commit context file inside the selected repository, then the workspace. */
+async function contextPath(directory: string, repository: string, file: string): Promise<string> {
+  if (isAbsolute(file)) return file
+  const repo = await gitRepository(directory, repository)
+  const workspace = await resolveWorkspace(directory)
+  const roots = [repo, workspace?.root, directory].filter(
+    (root): root is string => typeof root === "string" && root !== "",
+  )
+  for (const root of roots) {
+    const path = join(root, file)
+    if (await pathExists(path)) return path
+  }
+  return join(roots[0] ?? directory, file)
+}
+
 /** Runs git capturing its output, empty on failure. */
 function gitText(args: string[], cwd: string): Promise<string> {
   return execFileAsync("git", args, { cwd, env: commandEnv(), maxBuffer: 16 * 1024 * 1024 }).then(
@@ -2258,13 +2273,12 @@ const setup: Plugin.MainSetup = (ctx) => {
       return { stat: stat.slice(0, 6000), diff: diff.slice(0, 60000) }
     },
 
-    gitContext: async ({ directory }) => {
+    gitContext: async ({ directory, repository }) => {
       const workspace = await resolveWorkspace(directory)
       const key = workspace?.root ?? directory
       const saved = commitContext.value[key]
       if (!saved) return { text: "", file: "", content: "" }
-      const file =
-        saved.file === "" ? "" : isAbsolute(saved.file) ? saved.file : join(workspace?.root ?? directory, saved.file)
+      const file = saved.file === "" ? "" : await contextPath(directory, repository, saved.file)
       const content =
         file === ""
           ? ""
@@ -2281,11 +2295,9 @@ const setup: Plugin.MainSetup = (ctx) => {
       return "Commit context saved"
     },
 
-    gitContextFile: async ({ directory, file }) => {
-      const workspace = await resolveWorkspace(directory)
-      const root = workspace?.root ?? directory
+    gitContextFile: async ({ directory, repository, file }) => {
       if (file === "") return { content: "", found: false }
-      const path = isAbsolute(file) ? file : join(root, file)
+      const path = await contextPath(directory, repository, file)
       const content = await readFile(path, "utf8").catch(() => undefined)
       return { content: (content ?? "").slice(0, 16000), found: content !== undefined }
     },

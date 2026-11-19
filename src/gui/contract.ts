@@ -607,7 +607,7 @@ export const Odoo = Ipc.define({
       output: Schema.Struct({ stat: Schema.String, diff: Schema.String }),
     },
     gitContext: {
-      input: Schema.Struct({ directory: Schema.String }),
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
       output: Schema.Struct({ text: Schema.String, file: Schema.String, content: Schema.String }),
     },
     gitContextSet: {
@@ -615,7 +615,7 @@ export const Odoo = Ipc.define({
       output: Schema.String,
     },
     gitContextFile: {
-      input: Schema.Struct({ directory: Schema.String, file: Schema.String }),
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String, file: Schema.String }),
       output: Schema.Struct({ content: Schema.String, found: Schema.Boolean }),
     },
     adooRebuild: {

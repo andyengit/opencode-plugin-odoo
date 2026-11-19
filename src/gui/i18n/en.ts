@@ -242,7 +242,8 @@ export default {
   gitContextHint: "Used only to draft commit messages with AI in this workspace; it is not committed.",
   gitContextRules: "Rules or context",
   gitContextFile: "Skill or context file",
-  gitContextFileHint: "Absolute path or relative to the workspace; its content is added to the draft prompt.",
+  gitContextFileHint:
+    "Absolute path, or relative to the repository and then the workspace; its content is added to the draft prompt.",
   gitContextFileMissing: "That file does not exist.",
   gitContextPick: "Choose",
   gitContextExample: "Use example",

@@ -62,6 +62,7 @@ export function GitPanel(props: {
 }) {
   const ctx = usePlugin()
   const [repos, setRepos] = createSignal<Array<{ path: string; changed: number }>>([])
+  const [reposLoaded, setReposLoaded] = createSignal(false)
   const [repo, setRepo] = createSignal("")
   const [state, setState] = createSignal<GitState | undefined>()
   const [busy, setBusy] = createSignal<string | undefined>()
@@ -122,6 +123,7 @@ export function GitPanel(props: {
   const loadRepos = async () => {
     const result = await props.odoo.gitRepos({ directory: props.directory }).catch(() => ({ repos: [] }))
     setRepos([...result.repos])
+    setReposLoaded(true)
     if (result.repos.some((item) => item.path === repo())) {
       loadState()
       return
@@ -147,11 +149,12 @@ export function GitPanel(props: {
         setMessage("")
       }
       setRepos([])
+      setReposLoaded(false)
       setCommits([])
       setState(undefined)
       setSection("changes")
       void props.odoo
-        .gitContext({ directory: props.directory })
+        .gitContext({ directory: props.directory, repository: repo() })
         .then((value) => setHasContext(value.text.trim() !== "" || value.file !== ""))
         .catch(() => setHasContext(false))
       void loadRepos()
@@ -267,7 +270,7 @@ export function GitPanel(props: {
     if (!session) return
     setBusy("ai")
     const saved = await props.odoo
-      .gitContext({ directory: props.directory })
+      .gitContext({ directory: props.directory, repository: repo() })
       .catch(() => ({ text: "", file: "", content: "" }))
     const rules = [saved.text.trim(), saved.content.trim()].filter((part) => part !== "").join("\n\n").slice(0, 12000)
     const stagedDiff = await props.odoo
@@ -540,7 +543,7 @@ export function GitPanel(props: {
       const [found, setFound] = createSignal(true)
       const [contextFocused, setContextFocused] = createSignal(false)
       void props.odoo
-        .gitContext({ directory: props.directory })
+        .gitContext({ directory: props.directory, repository: repo() })
         .then((value) => {
           setText(value.text)
           setFile(value.file)
@@ -549,10 +552,9 @@ export function GitPanel(props: {
         })
         .catch(() => undefined)
       async function loadContent(path: string) {
-        const value = await props.odoo.gitContextFile({ directory: props.directory, file: path }).catch(() => ({
-          content: "",
-          found: false,
-        }))
+        const value = await props.odoo
+          .gitContextFile({ directory: props.directory, repository: repo(), file: path })
+          .catch(() => ({ content: "", found: false }))
         setContent(value.content)
         setFound(value.found)
       }
@@ -839,6 +841,7 @@ export function GitPanel(props: {
       </div>
 
       <div class="flex flex-col gap-2 min-h-0 flex-1 overflow-y-auto">
+        <Show when={reposLoaded()} fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("loading")}</span>}>
         <Show when={repos().length > 0} fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("gitNoRepo")}</span>}>
           <Show when={state()} fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("loading")}</span>}>
             {(value) => (
@@ -1176,6 +1179,7 @@ export function GitPanel(props: {
               </>
             )}
           </Show>
+        </Show>
         </Show>
       </div>
     </div>
