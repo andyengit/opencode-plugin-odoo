@@ -2244,10 +2244,10 @@ const setup: Plugin.MainSetup = (ctx) => {
       const path = await gitRepository(directory, repository)
       if (!path) return "Not a git repository"
       if (paths.length === 0) return "Choose the files to discard"
-      return (
-        (await git(untracked ? ["clean", "-f", "-d", "--", ...paths] : ["restore", "--staged", "--worktree", "--", ...paths], path)) ??
-        (untracked ? "Discarded untracked files" : "Discarded changes")
-      )
+      const args = untracked
+        ? ["clean", "-f", "-d", "--", ...paths]
+        : ["restore", "--staged", "--worktree", "--", ...paths]
+      return (await git(args, path)) ?? (untracked ? "Discarded untracked files" : "Discarded changes")
     },
 
     gitShow: async ({ directory, repository, hash }) => {
@@ -2284,9 +2284,10 @@ const setup: Plugin.MainSetup = (ctx) => {
     gitContextFile: async ({ directory, file }) => {
       const workspace = await resolveWorkspace(directory)
       const root = workspace?.root ?? directory
-      if (file === "") return { content: "" }
+      if (file === "") return { content: "", found: false }
       const path = isAbsolute(file) ? file : join(root, file)
-      return { content: (await readFile(path, "utf8").catch(() => "")).slice(0, 16000) }
+      const content = await readFile(path, "utf8").catch(() => undefined)
+      return { content: (content ?? "").slice(0, 16000), found: content !== undefined }
     },
 
     gitStage: async ({ directory, repository, paths }) => {

@@ -10,7 +10,7 @@ const BLUE = "#3b82f6"
 const GRAY = "#9ca3af"
 
 const SECTIONS = [
-  { id: "changes", label: "gitChanges", icon: "status" },
+  { id: "changes", label: "gitWorkingTree", icon: "status" },
   { id: "history", label: "gitHistory", icon: "outline-list-changelog" },
   { id: "stash", label: "gitStash", icon: "archive" },
 ] as const
@@ -170,7 +170,7 @@ export function GitPanel(props: {
 
   onMount(() => {
     const states = setInterval(() => {
-      if (busy()) return
+      if (busy() || repos().length === 0) return
       loadState()
     }, 3000)
     const repositories = setInterval(() => {
@@ -537,6 +537,7 @@ export function GitPanel(props: {
       const [text, setText] = createSignal("")
       const [file, setFile] = createSignal("")
       const [content, setContent] = createSignal("")
+      const [found, setFound] = createSignal(true)
       const [contextFocused, setContextFocused] = createSignal(false)
       void props.odoo
         .gitContext({ directory: props.directory })
@@ -544,13 +545,16 @@ export function GitPanel(props: {
           setText(value.text)
           setFile(value.file)
           setContent(value.content)
+          if (value.file !== "") void loadContent(value.file)
         })
         .catch(() => undefined)
-      const loadContent = async (path: string) => {
+      async function loadContent(path: string) {
         const value = await props.odoo.gitContextFile({ directory: props.directory, file: path }).catch(() => ({
           content: "",
+          found: false,
         }))
         setContent(value.content)
+        setFound(value.found)
       }
       const pick = async () => {
         const [picked] = (await ctx.desktop?.pick({ title: ctx.t("gitContextFile") }).catch(() => [])) ?? []
@@ -621,6 +625,11 @@ export function GitPanel(props: {
               </ctx.ui.Button>
             </div>
             <span class="text-[11px] opacity-50">{ctx.t("gitContextFileHint")}</span>
+            <Show when={file() !== "" && !found()}>
+              <span class="text-[11px]" style={{ color: AMBER }}>
+                {ctx.t("gitContextFileMissing")}
+              </span>
+            </Show>
             <Show when={content() !== ""}>
               <pre
                 class="text-[11px] whitespace-pre-wrap max-h-24 overflow-auto p-2"
