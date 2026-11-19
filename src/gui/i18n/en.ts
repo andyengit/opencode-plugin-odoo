@@ -51,6 +51,8 @@ export default {
   values: "Default values",
   valuesHint:
     "Edits are saved into the selected odoo.conf. What you write there wins; empty fields use Odoo's default.",
+  confAdminPasswd: "Master password",
+  generate: "Generate",
   extraConfig: "Additional options",
   extraHint:
     "These lines are added to the selected odoo.conf. Existing keys are updated in place; the rest of the file is kept.",

@@ -253,6 +253,7 @@ export const Odoo = Ipc.define({
         db_port: Schema.String,
         db_user: Schema.String,
         db_password: Schema.String,
+        admin_passwd: Schema.String,
         http_port: Schema.String,
         workers: Schema.String,
         max_cron_threads: Schema.String,

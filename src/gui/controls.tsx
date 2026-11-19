@@ -25,6 +25,7 @@ const CONF_KEYS = [
   "db_port",
   "db_user",
   "db_password",
+  "admin_passwd",
   "http_port",
   "workers",
   "max_cron_threads",
@@ -41,12 +42,21 @@ const CONF_DEFAULTS: Record<(typeof CONF_KEYS)[number], string> = {
   db_port: "5432",
   db_user: "odoo",
   db_password: "odoo",
+  admin_passwd: "",
   http_port: "8069",
   workers: "0",
   max_cron_threads: "2",
   limit_time_cpu: "60",
   limit_time_real: "120",
   log_level: "info",
+}
+
+/** A random master password, so the database manager never keeps Odoo's default. */
+function randomPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12))
+  return Array.from(bytes, (byte) => byte.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 16)
 }
 
 function postgresColor(state: WorkspaceStatus["postgres"] | undefined): string {
@@ -709,16 +719,27 @@ function ConfValues(props: { odoo: OdooClient; directory: string; label: string;
       <For each={CONF_KEYS}>
         {(key) => (
           <div class="flex items-center gap-1">
-            <span class="text-xs opacity-60 w-24 shrink-0">{key}</span>
+            <span class="text-xs opacity-60 w-24 shrink-0 truncate">
+              {key === "admin_passwd" ? ctx.t("confAdminPasswd") : key}
+            </span>
             <ctx.ui.TextInput
               value={values()[key] ?? ""}
               onInput={(value) => setValues({ ...values(), [key]: value })}
               onSubmit={(value) => void save(key, value)}
-              type={key === "db_password" ? "password" : "text"}
-              label={key}
+              type={key === "db_password" || key === "admin_passwd" ? "password" : "text"}
+              label={key === "admin_passwd" ? ctx.t("confAdminPasswd") : key}
               placeholder={CONF_DEFAULTS[key]}
               class="flex-1"
             />
+            <Show when={key === "admin_passwd"}>
+              <ctx.ui.IconButton
+                icon="reset"
+                label={ctx.t("generate")}
+                size="small"
+                variant="ghost"
+                onClick={() => setValues({ ...values(), [key]: randomPassword() })}
+              />
+            </Show>
             <ctx.ui.IconButton
               icon="check"
               label={ctx.t("save")}

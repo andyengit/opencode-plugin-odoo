@@ -1054,6 +1054,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         db_port: getString(config, "db_port") ?? "",
         db_user: getString(config, "db_user") ?? "",
         db_password: getString(config, "db_password") ?? "",
+        admin_passwd: getString(config, "admin_passwd") ?? "",
         http_port: getString(config, "http_port") ?? "",
         workers: getString(config, "workers") ?? "",
         max_cron_threads: getString(config, "max_cron_threads") ?? "",
