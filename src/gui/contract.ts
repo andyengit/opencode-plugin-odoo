@@ -178,6 +178,16 @@ export const RpcConnectionInfo = Schema.Struct({
 })
 export type RpcConnectionInfo = typeof RpcConnectionInfo.Type
 
+export const ConfEntry = Schema.Struct({
+  key: Schema.String,
+  value: Schema.String,
+})
+
+export const ConfSection = Schema.Struct({
+  name: Schema.String,
+  entries: Schema.Array(ConfEntry),
+})
+
 export const RebuildStatus = Schema.Struct({
   running: Schema.Boolean,
   environment: Schema.String,
@@ -260,6 +270,8 @@ export const Odoo = Ipc.define({
         limit_time_cpu: Schema.String,
         limit_time_real: Schema.String,
         log_level: Schema.String,
+        extra: Schema.Array(ConfEntry),
+        sections: Schema.Array(ConfSection),
       }),
     },
     confSet: {
@@ -268,6 +280,7 @@ export const Odoo = Ipc.define({
         label: Schema.String,
         key: Schema.String,
         value: Schema.String,
+        section: Schema.optional(Schema.String),
       }),
       output: Schema.String,
     },

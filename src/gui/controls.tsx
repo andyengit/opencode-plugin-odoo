@@ -14,25 +14,12 @@ import type {
   WorkspaceStatus,
   WorkspaceSummary,
 } from "./contract"
+import { CONF_KEYS } from "./fields"
 import { LogView } from "./log"
 
 const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
 const GRAY = "#6b7280"
-
-const CONF_KEYS = [
-  "db_host",
-  "db_port",
-  "db_user",
-  "db_password",
-  "admin_passwd",
-  "http_port",
-  "workers",
-  "max_cron_threads",
-  "limit_time_cpu",
-  "limit_time_real",
-  "log_level",
-] as const
 
 /** The Odoo series the panel offers to install. */
 const ODOO_VERSIONS = ["15.0", "16.0", "17.0", "18.0", "19.0", "20.0"]
@@ -690,13 +677,38 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
 function ConfValues(props: { odoo: OdooClient; directory: string; label: string; revision: number }) {
   const ctx = usePlugin()
   const [values, setValues] = createSignal<Record<string, string>>({})
+  const [extra, setExtra] = createSignal<Array<{ key: string; value: string }>>([])
+  const [sections, setSections] = createSignal<Array<{ name: string; entries: Array<{ key: string; value: string }> }>>([])
+  const [entryValues, setEntryValues] = createSignal<Record<string, string>>({})
   const [saving, setSaving] = createSignal<string | undefined>()
 
   const load = () =>
     void props.odoo
       .confValues({ directory: props.directory, label: props.label })
-      .then((next) => setValues({ ...next }))
-      .catch(() => setValues({}))
+      .then((next) => {
+        setValues(Object.fromEntries(CONF_KEYS.map((key) => [key, next[key]])) as Record<string, string>)
+        setExtra(next.extra.map((entry) => ({ ...entry })))
+        setSections(
+          next.sections.map((section) => ({
+            name: section.name,
+            entries: section.entries.map((entry) => ({ ...entry })),
+          })),
+        )
+        setEntryValues(
+          Object.fromEntries([
+            ...next.extra.map((entry) => [`options:${entry.key}`, entry.value] as const),
+            ...next.sections.flatMap((section) =>
+              section.entries.map((entry) => [`${section.name}:${entry.key}`, entry.value] as const),
+            ),
+          ]),
+        )
+      })
+      .catch(() => {
+        setValues({})
+        setExtra([])
+        setSections([])
+        setEntryValues({})
+      })
 
   createEffect(() => {
     props.revision
@@ -711,6 +723,57 @@ function ConfValues(props: { odoo: OdooClient; directory: string; label: string;
     if (message) ctx.toast.show({ title: message })
     setSaving(undefined)
     load()
+  }
+
+  /** Saves (or, with an empty value, removes) one entry that is not in the default list. */
+  const saveEntry = async (section: string, key: string, value: string) => {
+    const id = `${section}:${key}`
+    setSaving(id)
+    const message = await props.odoo
+      .confSet({ directory: props.directory, label: props.label, key, value, section })
+      .catch((error: unknown) => String(error))
+    if (message) ctx.toast.show({ title: message })
+    setSaving(undefined)
+    load()
+  }
+
+  const entryRow = (section: string, entry: { key: string; value: string }, added: boolean) => {
+    const id = `${section}:${entry.key}`
+    return (
+      <div class="flex items-center gap-1">
+        <span class="text-xs opacity-60 w-24 shrink-0 truncate">{entry.key}</span>
+        <Show when={added}>
+          <span
+            class="text-[9px] uppercase tracking-wide rounded px-1 shrink-0"
+            style={{ "background-color": "rgba(34,197,94,0.14)", color: GREEN }}
+          >
+            {ctx.t("added")}
+          </span>
+        </Show>
+        <ctx.ui.TextInput
+          value={entryValues()[id] ?? ""}
+          onInput={(value) => setEntryValues({ ...entryValues(), [id]: value })}
+          onSubmit={(value) => void saveEntry(section, entry.key, value)}
+          label={entry.key}
+          class="flex-1"
+        />
+        <ctx.ui.IconButton
+          icon="check"
+          label={ctx.t("save")}
+          size="small"
+          variant="ghost"
+          busy={saving() === id}
+          onClick={() => void saveEntry(section, entry.key, entryValues()[id] ?? "")}
+        />
+        <ctx.ui.IconButton
+          icon="trash"
+          label={ctx.t("delete")}
+          size="small"
+          variant="ghost"
+          onClick={() => void saveEntry(section, entry.key, "")}
+        />
+      </div>
+    )
   }
 
   return (
@@ -748,6 +811,25 @@ function ConfValues(props: { odoo: OdooClient; directory: string; label: string;
               busy={saving() === key}
               onClick={() => void save(key, values()[key] ?? "")}
             />
+          </div>
+        )}
+      </For>
+
+      <Show when={extra().length > 0}>
+        <span class="text-[11px] opacity-50 px-1 pt-1">{ctx.t("addedOptions")}</span>
+        <For each={extra()}>{(entry) => entryRow("options", entry, true)}</For>
+      </Show>
+
+      <For each={sections()}>
+        {(section) => (
+          <div class="flex flex-col gap-1 pt-1">
+            <span
+              class="text-[11px] opacity-50 px-1"
+              style={{ "font-family": "var(--font-family-mono, monospace)" }}
+            >
+              {`[${section.name}]`}
+            </span>
+            <For each={section.entries}>{(entry) => entryRow(section.name, entry, false)}</For>
           </div>
         )}
       </For>

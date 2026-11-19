@@ -5,6 +5,7 @@ import {
   getString,
   parseOdooConfig,
   setAddonsPath,
+  setEntryText,
   setString,
   serializeOdooConfig,
   setAddonsPathText,
@@ -117,16 +118,65 @@ describe("applyConfigLines", () => {
     expect(text.indexOf("dev = all")).toBeLessThan(text.indexOf("[queue_job]"))
   })
 
-  test("ignores comments, sections and blank lines", () => {
+  test("ignores comments and blank lines, and keeps a pasted section apart", () => {
     const { text, keys } = applyConfigLines(sample, "# note\n\n[extra]\nworkers = 1")
     expect(keys).toEqual(["workers"])
-    expect(text).not.toContain("[extra]")
+    expect(text).toContain("[extra]")
+    expect(parseOdooConfig(text).sections.get("extra")?.get("workers")).toBe("1")
+    expect(getString(parseOdooConfig(text), "workers")).toBe("0")
+  })
+
+  test("keeps a pasted queue_job entry out of options", () => {
+    const { text, keys } = applyConfigLines(sample, "[queue_job]\nchannel = root")
+    expect(keys).toEqual(["channel"])
+    const config = parseOdooConfig(text)
+    expect(config.sections.get("queue_job")?.get("channel")).toBe("root")
+    expect(config.sections.get("queue_job")?.get("channels")).toBe("root:2")
+    expect(config.options.has("channel")).toBe(false)
   })
 
   test("returns no keys when nothing parses", () => {
     const { text, keys } = applyConfigLines(sample, "not an option")
     expect(keys).toEqual([])
     expect(text).toBe(sample)
+  })
+})
+
+describe("setEntryText", () => {
+  test("updates an option in place and keeps comments", () => {
+    const source = `[options]\n# keep me\ndb_port = 5432\n\n[queue_job]\nchannels = root:2\n`
+    const text = setEntryText(source, "options", "db_port", "5433")
+    expect(text).toContain("# keep me")
+    expect(text).toContain("db_port = 5433")
+    expect(text).toContain("channels = root:2")
+    expect(text.match(/db_port =/g)?.length).toBe(1)
+  })
+
+  test("adds an option at the end of options, before the next section", () => {
+    const text = setEntryText(sample, "options", "proxy_mode", "True")
+    expect(text.indexOf("proxy_mode = True")).toBeLessThan(text.indexOf("[queue_job]"))
+    expect(parseOdooConfig(text).options.get("proxy_mode")).toBe(true)
+  })
+
+  test("updates an entry inside a section without touching options", () => {
+    const text = setEntryText(sample, "queue_job", "channels", "root:4")
+    const config = parseOdooConfig(text)
+    expect(config.sections.get("queue_job")?.get("channels")).toBe("root:4")
+    expect(config.options.has("channels")).toBe(false)
+  })
+
+  test("creates the section when it does not exist", () => {
+    const text = setEntryText("[options]\ndb_port = 5432\n", "queue_job", "channel", "root")
+    expect(text).toContain("[queue_job]")
+    expect(parseOdooConfig(text).sections.get("queue_job")?.get("channel")).toBe("root")
+    expect(getString(parseOdooConfig(text), "db_port")).toBe("5432")
+  })
+
+  test("removes an entry and leaves the rest", () => {
+    const text = setEntryText(sample, "queue_job", "channels", undefined)
+    expect(text).not.toContain("channels = root:2")
+    expect(text).toContain("[queue_job]")
+    expect(getString(parseOdooConfig(text), "db_port")).toBe("5432")
   })
 })
 

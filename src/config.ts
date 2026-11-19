@@ -100,40 +100,74 @@ export function serializeOdooConfig(config: OdooConfig): string {
 }
 
 /**
- * Merges `key = value` lines into an existing configuration text, replacing a matching entry in place
- * and inserting new ones at the end of the `[options]` section. Comments, ordering and every other line
- * survive, so the result adds to the file instead of replacing it.
+ * Sets (or removes, with `value` undefined) one entry inside a section, editing the file in place so comments,
+ * ordering and every other line survive. Creates the section at the end when it does not exist yet.
+ */
+export function setEntryText(text: string, section: string, key: string, value: string | undefined): string {
+  const lines = text.split("\n")
+  const isOptions = section === "options"
+  const header = lines.findIndex((line) => line.trim() === `[${section}]`)
+
+  if (!isOptions && header === -1) {
+    if (value === undefined) return text
+    const body = text.trimEnd()
+    return `${body === "" ? "" : `${body}\n\n`}[${section}]\n${key} = ${value}\n`
+  }
+
+  const start = header === -1 ? 0 : header + 1
+  let end = lines.length
+  for (let index = start; index < lines.length; index++) {
+    const trimmed = lines[index]?.trim() ?? ""
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      end = index
+      break
+    }
+  }
+
+  const existing = lines.findIndex((line, index) => index >= start && index < end && entryKey(line) === key)
+  if (value === undefined) {
+    if (existing === -1) return text
+    lines.splice(existing, 1)
+    return lines.join("\n")
+  }
+
+  const entry = `${key} = ${value}`
+  if (existing !== -1) {
+    lines[existing] = entry
+    return lines.join("\n")
+  }
+
+  let insertAt = end
+  while (insertAt > start && (lines[insertAt - 1]?.trim() ?? "") === "") insertAt--
+  lines.splice(insertAt, 0, entry)
+  return lines.join("\n")
+}
+
+/**
+ * Merges `key = value` lines into an existing configuration text, replacing a matching entry in place and
+ * inserting new ones at the end of their section (the `[options]` section unless the text names another one).
+ * Comments, ordering and every other line survive, so the result adds to the file instead of replacing it.
  */
 export function applyConfigLines(text: string, extra: string): { text: string; keys: string[] } {
-  const lines = text.split("\n")
-  const additions = new Map<string, string>()
+  let next = text
+  let section = "options"
   const keys: string[] = []
   for (const raw of extra.split("\n")) {
     const line = raw.trim()
-    if (line.length === 0 || line.startsWith("#") || line.startsWith(";") || line.startsWith("[")) continue
+    if (line.length === 0 || line.startsWith("#") || line.startsWith(";")) continue
+    const header = /^\[(.+)\]$/.exec(line)
+    if (header) {
+      section = (header[1] ?? "options").trim() || "options"
+      continue
+    }
     const index = line.indexOf("=")
     if (index <= 0) continue
     const key = line.slice(0, index).trim()
     if (key.length === 0) continue
-    const entry = `${key} = ${line.slice(index + 1).trim()}`
-    const existing = lines.findIndex((item) => entryKey(item) === key)
-    if (existing !== -1) {
-      lines[existing] = entry
-      additions.delete(key)
-    } else additions.set(key, entry)
+    next = setEntryText(next, section, key, line.slice(index + 1).trim())
     if (!keys.includes(key)) keys.push(key)
   }
-  if (additions.size > 0) {
-    let insertAt = lines.length
-    const nextSection = lines.findIndex((item) => {
-      const trimmed = item.trim()
-      return trimmed.length > 2 && trimmed.startsWith("[") && trimmed.endsWith("]") && trimmed !== "[options]"
-    })
-    if (nextSection !== -1) insertAt = nextSection
-    while (insertAt > 0 && lines[insertAt - 1]?.trim() === "") insertAt--
-    lines.splice(insertAt, 0, ...additions.values())
-  }
-  return { text: lines.join("\n"), keys }
+  return { text: next, keys }
 }
 
 function entryKey(line: string): string | undefined {

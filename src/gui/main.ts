@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 import { Schema } from "effect"
 import type { Plugin } from "@opencode/plugin/gui/main"
 import { CLI_MARKER, cliDispatcher, cliLauncher, cliState } from "../cli"
+import { isConfKey } from "./fields"
 import { parseProcesses } from "../ps"
 import { parseComposePs, parseDockerCompose, postgresCommands, postgresStatus } from "../docker"
 import {
@@ -15,9 +16,8 @@ import {
   getAddonsPath,
   getString,
   parseOdooConfig,
-  serializeOdooConfig,
   setAddonsPathText,
-  setString,
+  setEntryText,
 } from "../config"
 import { environmentLaunchCommand } from "../odoo"
 import { isProcessRunning, restartProcess, runningPid, startProcess, stopProcess } from "../process"
@@ -291,6 +291,12 @@ function summarize(workspace: OdooWorkspace): WorkspaceSummary {
 
 function pidFile(workspace: string, label: string): string {
   return `${workspace}/.odoo-run/${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.pid`
+}
+
+/** An `odoo.conf` value as the panel shows it. */
+function configValueText(value: string | boolean | string[]): string {
+  if (Array.isArray(value)) return value.join(",")
+  return typeof value === "boolean" ? (value ? "True" : "False") : value
 }
 
 async function postgresState(workspace: OdooWorkspace): Promise<WorkspaceStatus["postgres"]> {
@@ -1061,17 +1067,30 @@ const setup: Plugin.MainSetup = (ctx) => {
         limit_time_cpu: getString(config, "limit_time_cpu") ?? "",
         limit_time_real: getString(config, "limit_time_real") ?? "",
         log_level: getString(config, "log_level") ?? "",
+        extra: [...config.options.entries()]
+          .filter(([key]) => !isConfKey(key))
+          .map(([key, value]) => ({ key, value: configValueText(value) })),
+        sections: [...config.sections.entries()].map(([name, map]) => ({
+          name,
+          entries: [...map.entries()].map(([key, value]) => ({ key, value: configValueText(value) })),
+        })),
       }
     },
 
-    confSet: async ({ directory, label, key, value }) => {
+    confSet: async ({ directory, label, key, value, section }) => {
       const workspace = await resolveWorkspace(directory)
       const environment = workspace?.environments.find((item) => item.label === label)
       if (!environment) return "Configuration not found"
-      const config = parseOdooConfig(await readFile(environment.confPath, "utf8").catch(() => ""))
-      setString(config, key, value === "" ? undefined : value)
-      await writeFile(environment.confPath, serializeOdooConfig(config))
-      return `Set ${key}`
+      const current = await readFile(environment.confPath, "utf8").catch(() => "")
+      const next = setEntryText(
+        current,
+        section && section !== "" ? section : "options",
+        key,
+        value === "" ? undefined : value,
+      )
+      if (next === current) return value === "" ? `${key} was not set` : `Set ${key}`
+      await writeFile(environment.confPath, next)
+      return value === "" ? `Removed ${key}` : `Set ${key}`
     },
 
     confExtra: async ({ directory, label, text }) => {
