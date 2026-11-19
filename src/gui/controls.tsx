@@ -84,6 +84,13 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
   const [section, setSection] = createSignal("home")
   const [revision, setRevision] = createSignal(0)
   const [installStatus, setInstallStatus] = createSignal<InstallStatus | undefined>()
+  let scroller: HTMLDivElement | undefined
+
+  // Jump back to the top when the section changes, so a long list never leaves the user mid-page.
+  createEffect(() => {
+    section()
+    scroller?.scrollTo({ top: 0 })
+  })
 
   const loadStatus = () =>
     void props.odoo
@@ -300,7 +307,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
   }
 
   return (
-    <div class="flex flex-col gap-2 p-3 min-h-0 overflow-y-auto">
+    <div class="flex flex-col gap-2 p-3 min-h-0">
       <div class="flex items-center justify-end gap-1">
         <ctx.ui.Button
           size="small"
@@ -329,7 +336,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
         />
       </div>
 
-      <div class="flex gap-1 overflow-x-auto pb-1">
+      <div class="flex flex-wrap gap-1 py-1">
         <For each={SECTIONS}>
           {(item) => (
             <button
@@ -339,6 +346,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                 "bg-v2-background-bg-layer-02": section() === item.id,
                 "opacity-55": section() !== item.id,
               }}
+              aria-pressed={section() === item.id}
               onClick={() => setSection(item.id)}
             >
               <ctx.ui.Icon name={item.icon} size="small" />
@@ -348,6 +356,12 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
         </For>
       </div>
 
+      <div
+        ref={(element) => {
+          scroller = element
+        }}
+        class="flex flex-col gap-2 min-h-0 flex-1 overflow-y-auto"
+      >
       <Show when={section() !== "adoo" && section() !== "rpc"}>
         <Show when={summary() === undefined}>
         <span class="text-xs opacity-60 px-1">{ctx.t("loading")}</span>
@@ -712,6 +726,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
       <Show when={section() === "rpc"}>
         <RpcConnections odoo={props.odoo} />
       </Show>
+      </div>
     </div>
   )
 }
