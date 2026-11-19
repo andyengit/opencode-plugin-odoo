@@ -123,7 +123,10 @@ async function detectVersions(root: string, entries: Dirent[]): Promise<OdooVers
   const binDir = join(root, "bin")
   const binEntries = await readdir(binDir, { withFileTypes: true }).catch(() => [])
   for (const entry of binEntries) if (entry.isDirectory()) await add(entry.name, join(binDir, entry.name))
-  return versions
+  // readdir order differs per platform; a stable order keeps the fallback version predictable.
+  return versions.sort(
+    (a, b) => a.name.localeCompare(b.name, "en") || a.directory.localeCompare(b.directory, "en"),
+  )
 }
 
 async function detectSeries(directory: string): Promise<string> {
