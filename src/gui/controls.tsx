@@ -2953,7 +2953,10 @@ function LogsSection(props: {
   )
   createKeyed(
     () => label(),
-    () => load(),
+    () => {
+      follow = true
+      load()
+    },
   )
 
   const lines = () => {
