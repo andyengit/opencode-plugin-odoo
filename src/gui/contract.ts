@@ -188,6 +188,31 @@ export const ConfSection = Schema.Struct({
   entries: Schema.Array(ConfEntry),
 })
 
+export const DatabaseEntry = Schema.Struct({
+  name: Schema.String,
+  size: Schema.String,
+  filestore: Schema.Boolean,
+})
+
+export const BackupEntry = Schema.Struct({
+  name: Schema.String,
+  size: Schema.String,
+})
+
+export const ModuleEntry = Schema.Struct({
+  name: Schema.String,
+  state: Schema.String,
+  version: Schema.String,
+})
+
+export const ModuleStatus = Schema.Struct({
+  running: Schema.Boolean,
+  action: Schema.String,
+  module: Schema.String,
+  database: Schema.String,
+  message: Schema.String,
+})
+
 export const RebuildStatus = Schema.Struct({
   running: Schema.Boolean,
   environment: Schema.String,
@@ -270,6 +295,7 @@ export const Odoo = Ipc.define({
         limit_time_cpu: Schema.String,
         limit_time_real: Schema.String,
         log_level: Schema.String,
+        dev: Schema.String,
         extra: Schema.Array(ConfEntry),
         sections: Schema.Array(ConfSection),
       }),
@@ -324,6 +350,51 @@ export const Odoo = Ipc.define({
     venvRecreate: {
       input: Schema.Struct({ directory: Schema.String, version: Schema.String, python: Schema.String }),
       output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
+    },
+    databases: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.Struct({
+        databases: Schema.Array(DatabaseEntry),
+        backups: Schema.Array(BackupEntry),
+      }),
+    },
+    databaseAction: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        label: Schema.String,
+        action: Schema.Literals(["create", "duplicate", "drop", "backup", "restore"]),
+        name: Schema.String,
+        from: Schema.String,
+        demo: Schema.Boolean,
+        file: Schema.String,
+      }),
+      output: Schema.String,
+    },
+    modules: {
+      input: Schema.Struct({ directory: Schema.String, database: Schema.String }),
+      output: Schema.Struct({ modules: Schema.Array(ModuleEntry) }),
+    },
+    moduleAction: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        label: Schema.String,
+        database: Schema.String,
+        module: Schema.String,
+        action: Schema.Literals(["install", "upgrade", "test"]),
+      }),
+      output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
+    },
+    moduleStatus: {
+      input: Schema.Struct({}),
+      output: ModuleStatus,
+    },
+    debugStart: {
+      input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
+      output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
+    },
+    debugStop: {
+      input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
+      output: Schema.String,
     },
     addons: {
       input: Schema.Struct({ directory: Schema.String, label: Schema.String }),

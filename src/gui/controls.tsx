@@ -34,6 +34,17 @@ function pythonOptions(automatic: string) {
   ]
 }
 
+/** The panel sections, in the order the strip shows them. */
+const SECTIONS = [
+  { id: "home", label: "tabHome", icon: "workspace" },
+  { id: "config", label: "tabConfig", icon: "outline-sliders" },
+  { id: "modules", label: "tabModules", icon: "extensions" },
+  { id: "database", label: "tabDatabase", icon: "server" },
+  { id: "logs", label: "tabLogs", icon: "console" },
+  { id: "adoo", label: "adoo", icon: "globe" },
+  { id: "rpc", label: "rpcConnections", icon: "lock" },
+] as const
+
 const CONF_DEFAULTS: Record<(typeof CONF_KEYS)[number], string> = {
   db_host: "localhost",
   db_port: "5432",
@@ -46,6 +57,7 @@ const CONF_DEFAULTS: Record<(typeof CONF_KEYS)[number], string> = {
   limit_time_cpu: "60",
   limit_time_real: "120",
   log_level: "info",
+  dev: "all",
 }
 
 /** A random master password, so the database manager never keeps Odoo's default. */
@@ -69,12 +81,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
   const [busy, setBusy] = createSignal<string | undefined>()
   const [version, setVersion] = createSignal("18.0")
   const [python, setPython] = createSignal("")
-  const [openValues, setOpenValues] = createSignal(false)
-  const [openText, setOpenText] = createSignal(false)
-  const [openAdoo, setOpenAdoo] = createSignal(false)
-  const [openPython, setOpenPython] = createSignal(false)
-  const [openAddons, setOpenAddons] = createSignal(false)
-  const [openConnections, setOpenConnections] = createSignal(false)
+  const [section, setSection] = createSignal("home")
   const [revision, setRevision] = createSignal(0)
   const [installStatus, setInstallStatus] = createSignal<InstallStatus | undefined>()
 
@@ -359,8 +366,28 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
             <div class="flex flex-col gap-2">
               <div class="text-[11px] opacity-50 px-1 truncate">{workspace().root}</div>
 
-              <Show when={installStatus()?.running}>
-                <div class="flex items-center gap-1">
+              <div class="flex gap-1 overflow-x-auto pb-1">
+                <For each={SECTIONS}>
+                  {(item) => (
+                    <button
+                      type="button"
+                      class="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[11px]"
+                      classList={{
+                        "bg-v2-background-bg-layer-02": section() === item.id,
+                        "opacity-55": section() !== item.id,
+                      }}
+                      onClick={() => setSection(item.id)}
+                    >
+                      <ctx.ui.Icon name={item.icon} size="small" />
+                      {ctx.t(item.label)}
+                    </button>
+                  )}
+                </For>
+              </div>
+
+              <Show when={section() === "home"}>
+                <Show when={installStatus()?.running}>
+                  <div class="flex items-center gap-1">
                   <span class="text-xs opacity-70 flex-1 truncate">
                     {`${installStatus()?.version ?? ""} · ${installStep()} · ${installElapsed()}s`}
                   </span>
@@ -566,39 +593,39 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                   }}
                 </Show>
 
-                <ctx.ui.Button
-                  size="small"
-                  variant="ghost"
-                  class="justify-start"
-                  onClick={() => setOpenValues(!openValues())}
-                >
-                  <span class="flex items-center gap-1 w-full">
-                    <ctx.ui.Icon name="outline-sliders" size="small" />
-                    {ctx.t("values")}
-                    <span class="flex-1" />
-                    <ctx.ui.Icon name={openValues() ? "chevron-down" : "chevron-right"} size="small" />
-                  </span>
-                </ctx.ui.Button>
-                <Show when={openValues() && active()}>
+                <Show when={active()}>
+                  {(label) => (
+                    <ctx.ui.Button
+                      size="small"
+                      variant="ghost"
+                      class="justify-start"
+                      icon="terminal"
+                      onClick={() =>
+                        ctx.dialogs.open((dialog) => (
+                          <DebugDialog
+                            odoo={props.odoo}
+                            directory={props.directory}
+                            label={label()}
+                            close={dialog.close}
+                          />
+                        ))
+                      }
+                    >
+                      {ctx.t("debug")}
+                    </ctx.ui.Button>
+                  )}
+                </Show>
+              </Show>
+
+              <Show when={section() === "config"}>
+                <span class="text-[11px] opacity-50 px-1 truncate">{active() || ctx.t("noConfig")}</span>
+                <Show when={active()}>
                   {(label) => (
                     <ConfValues odoo={props.odoo} directory={props.directory} label={label()} revision={revision()} />
                   )}
                 </Show>
 
-                <ctx.ui.Button
-                  size="small"
-                  variant="ghost"
-                  class="justify-start"
-                  onClick={() => setOpenText(!openText())}
-                >
-                  <span class="flex items-center gap-1 w-full">
-                    <ctx.ui.Icon name="code-lines" size="small" />
-                    {ctx.t("extraConfig")}
-                    <span class="flex-1" />
-                    <ctx.ui.Icon name={openText() ? "chevron-down" : "chevron-right"} size="small" />
-                  </span>
-                </ctx.ui.Button>
-                <Show when={openText() && active()}>
+                <Show when={active()}>
                   {(label) => (
                     <ConfExtra
                       odoo={props.odoo}
@@ -612,20 +639,7 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                   )}
                 </Show>
 
-                <ctx.ui.Button
-                  size="small"
-                  variant="ghost"
-                  class="justify-start"
-                  onClick={() => setOpenAddons(!openAddons())}
-                >
-                  <span class="flex items-center gap-1 w-full">
-                    <ctx.ui.Icon name="folder" size="small" />
-                    {ctx.t("addons")}
-                    <span class="flex-1" />
-                    <ctx.ui.Icon name={openAddons() ? "chevron-down" : "chevron-right"} size="small" />
-                  </span>
-                </ctx.ui.Button>
-                <Show when={openAddons() && active()}>
+                <Show when={active()}>
                   {(label) => (
                     <AddonsPaths
                       odoo={props.odoo}
@@ -637,64 +651,36 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                 </Show>
 
                 <Show when={workspace().versions.length > 0 && workspace().environmentVersion}>
-                  <ctx.ui.Button
-                    size="small"
-                    variant="ghost"
-                    class="justify-start"
-                    onClick={() => setOpenPython(!openPython())}
-                  >
-                    <span class="flex items-center gap-1 w-full">
-                      <ctx.ui.Icon name="cube" size="small" />
-                      {ctx.t("pythonPackages")}
-                      <span class="flex-1" />
-                      <ctx.ui.Icon name={openPython() ? "chevron-down" : "chevron-right"} size="small" />
-                    </span>
-                  </ctx.ui.Button>
-                  <Show when={openPython()}>
-                    <PythonPackages
-                      odoo={props.odoo}
-                      directory={props.directory}
-                      version={workspace().environmentVersion}
-                    />
-                  </Show>
+                  <PythonPackages
+                    odoo={props.odoo}
+                    directory={props.directory}
+                    version={workspace().environmentVersion}
+                  />
                 </Show>
+              </Show>
 
-                <ctx.ui.Button
-                  size="small"
-                  variant="ghost"
-                  class="justify-start"
-                  onClick={() => setOpenAdoo(!openAdoo())}
-                >
-                  <span class="flex items-center gap-1 w-full">
-                    <ctx.ui.Icon name="globe" size="small" />
-                    {ctx.t("adoo")}
-                    <span class="flex-1" />
-                    <ctx.ui.Icon name={openAdoo() ? "chevron-down" : "chevron-right"} size="small" />
-                  </span>
-                </ctx.ui.Button>
-                <Show when={openAdoo()}>
-                  <AdooAccount odoo={props.odoo} directory={props.directory} />
-                </Show>
+              <Show when={section() === "adoo"}>
+                <AdooAccount odoo={props.odoo} directory={props.directory} />
+              </Show>
+              </Show>
+
+              <Show when={section() === "modules"}>
+                <ModulesSection odoo={props.odoo} directory={props.directory} label={active()} />
+              </Show>
+
+              <Show when={section() === "database"}>
+                <DatabasesSection odoo={props.odoo} directory={props.directory} label={active()} />
+              </Show>
+
+              <Show when={section() === "logs"}>
+                <LogsSection odoo={props.odoo} directory={props.directory} labels={workspace().environments} />
               </Show>
             </div>
           )
         }}
       </Show>
 
-      <ctx.ui.Button
-        size="small"
-        variant="ghost"
-        class="justify-start"
-        onClick={() => setOpenConnections(!openConnections())}
-      >
-        <span class="flex items-center gap-1 w-full">
-          <ctx.ui.Icon name="lock" size="small" />
-          {ctx.t("rpcConnections")}
-          <span class="flex-1" />
-          <ctx.ui.Icon name={openConnections() ? "chevron-down" : "chevron-right"} size="small" />
-        </span>
-      </ctx.ui.Button>
-      <Show when={openConnections()}>
+      <Show when={section() === "rpc"}>
         <RpcConnections odoo={props.odoo} />
       </Show>
     </div>
@@ -2517,6 +2503,439 @@ function CliDialog(props: { odoo: OdooClient; directory: string; close: () => vo
           </div>
         )}
       </Show>
+    </ctx.ui.Dialog>
+  )
+}
+
+function ModulesSection(props: { odoo: OdooClient; directory: string; label: string }) {
+  const ctx = usePlugin()
+  const [databases, setDatabases] = createSignal<Array<{ name: string; size: string; filestore: boolean }>>([])
+  const [database, setDatabase] = createSignal("")
+  const [modules, setModules] = createSignal<Array<{ name: string; state: string; version: string }>>([])
+  const [filter, setFilter] = createSignal("")
+  const [status, setStatus] = createSignal<Awaited<ReturnType<OdooClient["moduleStatus"]>> | undefined>()
+  const [busy, setBusy] = createSignal("")
+
+  const loadDatabases = async () => {
+    const result = await props.odoo.databases({ directory: props.directory }).catch(() => ({ databases: [], backups: [] }))
+    setDatabases([...result.databases])
+    if (!result.databases.some((item) => item.name === database())) {
+      setDatabase(result.databases.find((item) => item.name === "db")?.name ?? result.databases[0]?.name ?? "")
+    }
+  }
+  const loadModules = () =>
+    void props.odoo
+      .modules({ directory: props.directory, database: database() })
+      .then((result) => setModules([...result.modules]))
+      .catch(() => setModules([]))
+  const loadStatus = () =>
+    void props.odoo
+      .moduleStatus({})
+      .then(setStatus)
+      .catch(() => undefined)
+
+  onMount(() => {
+    void loadDatabases()
+    loadStatus()
+  })
+  createKeyed(
+    () => database(),
+    () => loadModules(),
+  )
+  createKeyed(
+    () => status()?.running,
+    (running) => {
+      if (!running) return
+      const timer = setInterval(loadStatus, 1000)
+      onCleanup(() => clearInterval(timer))
+    },
+  )
+  let wasRunning = false
+  createEffect(() => {
+    const value = status()
+    if (wasRunning && value && !value.running) {
+      ctx.toast.show({
+        title: value.message,
+        variant: value.message.endsWith("finished") ? "success" : "error",
+      })
+      loadModules()
+    }
+    wasRunning = value?.running ?? false
+  })
+
+  const act = async (name: string, action: "install" | "upgrade" | "test") => {
+    setBusy(`${action}:${name}`)
+    const result = await props.odoo
+      .moduleAction({ directory: props.directory, label: props.label, database: database(), module: name, action })
+      .catch((error: unknown) => ({ started: false, message: String(error) }))
+    setBusy("")
+    if (!result.started) {
+      ctx.toast.show({ title: result.message, variant: "error" })
+      return
+    }
+    loadStatus()
+  }
+
+  const visible = () => {
+    const query = filter().toLowerCase()
+    return modules()
+      .filter((item) => item.name.toLowerCase().includes(query))
+      .slice(0, 300)
+  }
+  const stateColor = (state: string) => (state === "installed" ? GREEN : state.startsWith("to ") ? AMBER : GRAY)
+
+  return (
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-1">
+        <ctx.ui.Select
+          options={databases().map((item) => ({ value: item.name, label: `${item.name} · ${item.size}` }))}
+          value={database() || undefined}
+          onChange={setDatabase}
+          label={ctx.t("tabDatabase")}
+          placeholder={ctx.t("noDatabase")}
+          class="flex-1"
+        />
+        <ctx.ui.IconButton
+          icon="outline-rotate-clockwise"
+          label={ctx.t("refresh")}
+          size="small"
+          onClick={() => {
+            void loadDatabases()
+            loadModules()
+            loadStatus()
+          }}
+        />
+      </div>
+      <ctx.ui.TextInput value={filter()} onInput={setFilter} label={ctx.t("search")} placeholder={ctx.t("search")} />
+      <Show when={status()?.running}>
+        <span class="text-[11px] opacity-60 px-1 truncate">{status()?.message}</span>
+      </Show>
+      <Show
+        when={database() !== ""}
+        fallback={<span class="text-[11px] opacity-50 px-1">{ctx.t("noDatabase")}</span>}
+      >
+        <div class="flex flex-col gap-0.5 max-h-80 overflow-y-auto">
+          <For each={visible()}>
+            {(item) => (
+              <div class="flex items-center gap-1 px-1 text-xs">
+                <span class="w-2 h-2 rounded-full shrink-0" style={{ "background-color": stateColor(item.state) }} />
+                <span
+                  class="flex-1 truncate"
+                  style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                  title={`${item.name} · ${item.state} · ${item.version}`}
+                >
+                  {item.name}
+                </span>
+                <span class="text-[11px] opacity-40 shrink-0 max-w-24 truncate">{item.state}</span>
+                <Show when={item.state === "installed" || item.state === "to upgrade"}>
+                  <ctx.ui.IconButton
+                    icon="arrow-up"
+                    label={ctx.t("moduleUpgrade")}
+                    size="small"
+                    variant="ghost"
+                    busy={busy() === `upgrade:${item.name}`}
+                    onClick={() => void act(item.name, "upgrade")}
+                  />
+                  <ctx.ui.IconButton
+                    icon="flask"
+                    label={ctx.t("moduleTests")}
+                    size="small"
+                    variant="ghost"
+                    busy={busy() === `test:${item.name}`}
+                    onClick={() => void act(item.name, "test")}
+                  />
+                </Show>
+                <Show when={item.state === "uninstalled"}>
+                  <ctx.ui.IconButton
+                    icon="download"
+                    label={ctx.t("moduleInstall")}
+                    size="small"
+                    variant="ghost"
+                    busy={busy() === `install:${item.name}`}
+                    onClick={() => void act(item.name, "install")}
+                  />
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
+  )
+}
+
+function DatabasesSection(props: { odoo: OdooClient; directory: string; label: string }) {
+  const ctx = usePlugin()
+  const [databases, setDatabases] = createSignal<Array<{ name: string; size: string; filestore: boolean }>>([])
+  const [backups, setBackups] = createSignal<Array<{ name: string; size: string }>>([])
+  const [name, setName] = createSignal("")
+  const [demo, setDemo] = createSignal(true)
+  const [busy, setBusy] = createSignal("")
+
+  const load = () =>
+    void props.odoo
+      .databases({ directory: props.directory })
+      .then((result) => {
+        setDatabases([...result.databases])
+        setBackups([...result.backups])
+      })
+      .catch(() => {
+        setDatabases([])
+        setBackups([])
+      })
+
+  onMount(load)
+
+  const act = async (
+    key: string,
+    action: "create" | "duplicate" | "drop" | "backup" | "restore",
+    input: { name?: string; from?: string; file?: string; demo?: boolean } = {},
+  ) => {
+    setBusy(key)
+    const message = await props.odoo
+      .databaseAction({
+        directory: props.directory,
+        label: props.label,
+        action,
+        name: input.name ?? "",
+        from: input.from ?? "",
+        demo: input.demo ?? demo(),
+        file: input.file ?? "",
+      })
+      .catch((error: unknown) => String(error))
+    setBusy("")
+    ctx.toast.show({ title: message })
+    load()
+  }
+
+  const askName = (title: string, description: string, initial: string, confirm: (value: string) => void) => {
+    const [value, setValue] = createSignal(initial)
+    ctx.dialogs.open((dialog) => (
+      <ctx.ui.Dialog
+        title={title}
+        description={description}
+        footer={
+          <>
+            <ctx.ui.Button variant="ghost" onClick={dialog.close}>
+              {ctx.t("cancel")}
+            </ctx.ui.Button>
+            <ctx.ui.Button
+              variant="contrast"
+              disabled={value().trim() === ""}
+              onClick={() => {
+                dialog.close()
+                confirm(value())
+              }}
+            >
+              {ctx.t("save")}
+            </ctx.ui.Button>
+          </>
+        }
+      >
+        <ctx.ui.TextInput value={value()} onInput={setValue} label={ctx.t("dbName")} autofocus />
+      </ctx.ui.Dialog>
+    ))
+  }
+
+  const duplicate = (database: string) =>
+    askName(ctx.t("dbDuplicate"), database, `${database}_copy`, (value) =>
+      void act(`duplicate:${value}`, "duplicate", { name: value, from: database }),
+    )
+
+  const restore = (file: string) =>
+    askName(ctx.t("dbRestore"), file, file.replace(/\.(dump|zip|sql)$/, ""), (value) =>
+      void act(`restore:${file}`, "restore", { name: value, file }),
+    )
+
+  const drop = async (database: string) => {
+    const ok = await ctx.dialogs.confirm({
+      title: ctx.t("dbDrop"),
+      description: database,
+      confirm: ctx.t("delete"),
+      danger: true,
+    })
+    if (ok) await act(`drop:${database}`, "drop", { name: database })
+  }
+
+  return (
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-1">
+        <ctx.ui.TextInput value={name()} onInput={setName} label={ctx.t("dbName")} placeholder="mi_db" class="flex-1" />
+        <ctx.ui.Button
+          size="small"
+          variant="contrast"
+          busy={busy() === "create"}
+          disabled={name().trim() === ""}
+          onClick={() => void act("create", "create", { name: name() })}
+        >
+          {ctx.t("dbCreate")}
+        </ctx.ui.Button>
+        <ctx.ui.IconButton icon="outline-rotate-clockwise" label={ctx.t("refresh")} size="small" onClick={load} />
+      </div>
+      <ctx.ui.Switch label={ctx.t("dbDemo")} description={ctx.t("dbDemoHint")} checked={demo()} onChange={setDemo} />
+
+      <span class="text-[11px] opacity-50 px-1 pt-1">{ctx.t("databases")}</span>
+      <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+        <For each={databases()}>
+          {(item) => (
+            <div class="flex items-center gap-1 px-1 text-xs">
+              <span
+                class="flex-1 truncate"
+                style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                title={item.name}
+              >
+                {item.name}
+              </span>
+              <span class="text-[11px] opacity-40 shrink-0">{item.size}</span>
+              <Show when={item.filestore}>
+                <ctx.ui.Icon name="folder" size="small" />
+              </Show>
+              <ctx.ui.IconButton
+                icon="archive"
+                label={ctx.t("dbBackup")}
+                size="small"
+                variant="ghost"
+                busy={busy() === `backup:${item.name}`}
+                onClick={() => void act(`backup:${item.name}`, "backup", { name: item.name })}
+              />
+              <ctx.ui.IconButton
+                icon="copy"
+                label={ctx.t("dbDuplicate")}
+                size="small"
+                variant="ghost"
+                onClick={() => duplicate(item.name)}
+              />
+              <ctx.ui.IconButton
+                icon="trash"
+                label={ctx.t("dbDrop")}
+                size="small"
+                variant="ghost"
+                onClick={() => void drop(item.name)}
+              />
+            </div>
+          )}
+        </For>
+      </div>
+
+      <Show when={backups().length > 0}>
+        <span class="text-[11px] opacity-50 px-1 pt-1">{ctx.t("backups")}</span>
+        <div class="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+          <For each={backups()}>
+            {(item) => (
+              <div class="flex items-center gap-1 px-1 text-xs">
+                <span class="flex-1 truncate" title={item.name}>
+                  {item.name}
+                </span>
+                <span class="text-[11px] opacity-40 shrink-0">{item.size}</span>
+                <Show when={!item.name.endsWith(".zip")}>
+                  <ctx.ui.IconButton
+                    icon="outline-undo"
+                    label={ctx.t("dbRestore")}
+                    size="small"
+                    variant="ghost"
+                    onClick={() => restore(item.name)}
+                  />
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
+  )
+}
+
+function LogsSection(props: { odoo: OdooClient; directory: string; labels: readonly string[] }) {
+  const ctx = usePlugin()
+  const [label, setLabel] = createSignal(props.labels[0] ?? "")
+  const [text, setText] = createSignal("")
+  const [errorsOnly, setErrorsOnly] = createSignal(false)
+
+  const load = () =>
+    void props.odoo
+      .log({ directory: props.directory, label: label() })
+      .then(setText)
+      .catch(() => setText(""))
+
+  onMount(() => {
+    load()
+    const timer = setInterval(load, 2000)
+    onCleanup(() => clearInterval(timer))
+  })
+  createKeyed(
+    () => label(),
+    () => load(),
+  )
+
+  const lines = () => {
+    const all = text().split("\n")
+    return (errorsOnly() ? all.filter((line) => /ERROR|CRITICAL|Traceback|WARNING/.test(line)) : all).slice(-200)
+  }
+
+  return (
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-1">
+        <ctx.ui.Select
+          options={props.labels.map((item) => ({ value: item, label: item }))}
+          value={label() || undefined}
+          onChange={setLabel}
+          label={ctx.t("log")}
+          class="flex-1"
+        />
+        <ctx.ui.Switch label={ctx.t("errorsOnly")} hideLabel checked={errorsOnly()} onChange={setErrorsOnly} />
+      </div>
+      <pre
+        class="text-[11px] whitespace-pre-wrap overflow-auto max-h-80 p-2"
+        style={{ "font-family": "var(--font-family-mono, monospace)" }}
+      >
+        {lines().join("\n") || "(no output yet)"}
+      </pre>
+    </div>
+  )
+}
+
+function DebugDialog(props: { odoo: OdooClient; directory: string; label: string; close: () => void }) {
+  const ctx = usePlugin()
+  const [busy, setBusy] = createSignal("")
+
+  const start = async () => {
+    setBusy("start")
+    const result = await props.odoo
+      .debugStart({ directory: props.directory, label: props.label })
+      .catch((error: unknown) => ({ started: false, message: String(error) }))
+    setBusy("")
+    ctx.toast.show({ title: result.message, variant: result.started ? "success" : "error" })
+  }
+  const stop = async () => {
+    setBusy("stop")
+    const message = await props.odoo
+      .debugStop({ directory: props.directory, label: props.label })
+      .catch((error: unknown) => String(error))
+    setBusy("")
+    ctx.toast.show({ title: message })
+  }
+
+  return (
+    <ctx.ui.Dialog
+      title={ctx.t("debug")}
+      description={`${props.label} · 127.0.0.1:5678`}
+      footer={
+        <ctx.ui.Button variant="contrast" onClick={props.close}>
+          {ctx.t("close")}
+        </ctx.ui.Button>
+      }
+    >
+      <div class="flex flex-col gap-3">
+        <span class="text-xs opacity-70">{ctx.t("debugHint")}</span>
+        <div class="flex items-center gap-2">
+          <ctx.ui.Button size="small" variant="contrast" busy={busy() === "start"} onClick={() => void start()}>
+            {ctx.t("debugStart")}
+          </ctx.ui.Button>
+          <ctx.ui.Button size="small" variant="ghost" busy={busy() === "stop"} onClick={() => void stop()}>
+            {ctx.t("debugStop")}
+          </ctx.ui.Button>
+        </div>
+      </div>
     </ctx.ui.Dialog>
   )
 }

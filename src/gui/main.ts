@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process"
 import { createReadStream, createWriteStream } from "node:fs"
-import { access, chmod, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises"
+import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve, sep } from "node:path"
 import { Readable } from "node:stream"
@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 import { Schema } from "effect"
 import type { Plugin } from "@opencode/plugin/gui/main"
 import { CLI_MARKER, cliDispatcher, cliLauncher, cliState } from "../cli"
+import { parseDatabases, parseModules, quoteIdentifier, safeDatabaseName } from "../database"
 import { isConfKey } from "./fields"
 import { parseProcesses } from "../ps"
 import { parseComposePs, parseDockerCompose, postgresCommands, postgresStatus } from "../docker"
@@ -107,6 +108,15 @@ interface PythonJob {
   running: boolean
   version: string
   packages: string
+  message: string
+  startedAt: number
+}
+
+interface ModuleJob {
+  running: boolean
+  action: string
+  module: string
+  database: string
   message: string
   startedAt: number
 }
@@ -293,6 +303,37 @@ function pidFile(workspace: string, label: string): string {
   return `${workspace}/.odoo-run/${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.pid`
 }
 
+/** Adds (or replaces) an attach configuration in the workspace's `.vscode/launch.json`. */
+async function writeLaunchConfig(root: string): Promise<void> {
+  const file = join(root, ".vscode", "launch.json")
+  const current = await readFile(file, "utf8").catch(() => "")
+  let parsed: Record<string, unknown> = { version: "0.2.0", configurations: [] }
+  if (current !== "") {
+    try {
+      const value: unknown = JSON.parse(current)
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) parsed = value as Record<string, unknown>
+      else return
+    } catch {
+      return
+    }
+  }
+  const configurations = Array.isArray(parsed.configurations) ? [...parsed.configurations] : []
+  const attach = {
+    name: "Odoo: attach",
+    type: "debugpy",
+    request: "attach",
+    connect: { host: "127.0.0.1", port: 5678 },
+    justMyCode: true,
+  }
+  const index = configurations.findIndex(
+    (item) => typeof item === "object" && item !== null && (item as Record<string, unknown>).name === attach.name,
+  )
+  if (index === -1) configurations.push(attach)
+  else configurations[index] = attach
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, `${JSON.stringify({ ...parsed, version: "0.2.0", configurations }, null, 2)}\n`)
+}
+
 /** An `odoo.conf` value as the panel shows it. */
 function configValueText(value: string | boolean | string[]): string {
   if (Array.isArray(value)) return value.join(",")
@@ -309,6 +350,102 @@ async function venvPythonVersion(venv: string): Promise<string> {
     (result) => result.stdout.trim(),
     () => "",
   )
+}
+
+interface PostgresLogin {
+  compose: string
+  service: string
+  user: string
+}
+
+async function postgresLogin(workspace: OdooWorkspace): Promise<PostgresLogin | undefined> {
+  if (!workspace.dockerComposePath) return undefined
+  const text = await readFile(workspace.dockerComposePath, "utf8").catch(() => "")
+  const service = parseDockerCompose(text)[0]
+  if (!service) return undefined
+  const user = /POSTGRES_USER:\s*([^\s#]+)/.exec(text)?.[1] ?? "odoo"
+  return { compose: workspace.dockerComposePath, service: service.name, user }
+}
+
+/** Runs one SQL statement in a database through the compose Postgres service. */
+async function runSql(
+  workspace: OdooWorkspace,
+  database: string,
+  sql: string,
+): Promise<{ ok: boolean; stdout: string; error: string }> {
+  const login = await postgresLogin(workspace)
+  if (!login) return { ok: false, stdout: "", error: "No Postgres service found in docker-compose.yml" }
+  const result = await execFileAsync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      login.compose,
+      "exec",
+      "-T",
+      login.service,
+      "psql",
+      "-U",
+      login.user,
+      "-d",
+      database,
+      "-At",
+      "-F",
+      "\t",
+      "-c",
+      sql,
+    ],
+    { env: commandEnv(), maxBuffer: 16 * 1024 * 1024 },
+  ).then(
+    (value) => ({ ok: true, stdout: value.stdout, error: "" }),
+    (error: unknown) => {
+      const record = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {}
+      return {
+        ok: false,
+        stdout: typeof record.stdout === "string" ? record.stdout : "",
+        error: typeof record.stderr === "string" ? record.stderr.trim() : String(error),
+      }
+    },
+  )
+  return result
+}
+
+/** Runs a command writing its stdout into a file; resolves with the failure text, if any. */
+function commandToFile(args: string[], target: string): Promise<string | undefined> {
+  const [file, ...rest] = args
+  if (!file) return Promise.resolve("empty command")
+  return new Promise((resolve) => {
+    const child = spawn(file, rest, { env: commandEnv(), stdio: ["ignore", "pipe", "pipe"] })
+    const output = createWriteStream(target)
+    child.stdout.pipe(output)
+    let stderr = ""
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-4000)
+    })
+    child.on("error", (error) => {
+      output.close()
+      resolve(String(error))
+    })
+    child.on("close", (code) => {
+      output.close()
+      resolve(code === 0 ? undefined : stderr.trim() || `exit ${code}`)
+    })
+  })
+}
+
+/** Runs a command feeding a file through its stdin; resolves with the failure text, if any. */
+function commandFromFile(args: string[], source: string): Promise<string | undefined> {
+  const [file, ...rest] = args
+  if (!file) return Promise.resolve("empty command")
+  return new Promise((resolve) => {
+    const child = spawn(file, rest, { env: commandEnv(), stdio: [createReadStream(source), "ignore", "pipe"] })
+    let stderr = ""
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-4000)
+    })
+    child.on("error", (error) => resolve(String(error)))
+    child.on("close", (code) => resolve(code === 0 ? undefined : stderr.trim() || `exit ${code}`))
+  })
 }
 
 async function postgresState(workspace: OdooWorkspace): Promise<WorkspaceStatus["postgres"]> {
@@ -362,6 +499,7 @@ const setup: Plugin.MainSetup = (ctx) => {
   let installJob: InstallJob | undefined
   let pythonJob: PythonJob | undefined
   let rebuildJob: RebuildJob | undefined
+  let moduleJob: ModuleJob | undefined
 
   const adooStatus = (): AdooStatus => {
     const tokens = adooTokens.value
@@ -1079,6 +1217,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         limit_time_cpu: getString(config, "limit_time_cpu") ?? "",
         limit_time_real: getString(config, "limit_time_real") ?? "",
         log_level: getString(config, "log_level") ?? "",
+        dev: getString(config, "dev") ?? "",
         extra: [...config.options.entries()]
           .filter(([key]) => !isConfKey(key))
           .map(([key, value]) => ({ key, value: configValueText(value) })),
@@ -1268,6 +1407,244 @@ const setup: Plugin.MainSetup = (ctx) => {
         },
       )
       return { started: true, message: "" }
+    },
+
+    databases: async ({ directory }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { databases: [], backups: [] }
+      const environment =
+        workspace.environments.find((item) => item.active) ?? workspace.environments[0]
+      const text = environment ? await readFile(environment.confPath, "utf8").catch(() => "") : ""
+      const dataDir = getString(parseOdooConfig(text), "data_dir") ?? join(workspace.root, ".odoo-data")
+      const listed = await runSql(
+        workspace,
+        "postgres",
+        "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database WHERE datistemplate = false AND datallowconn = true AND datname <> 'postgres' ORDER BY datname",
+      )
+      const databases = await Promise.all(
+        parseDatabases(listed.stdout).map(async (item) => ({
+          ...item,
+          filestore: await pathExists(join(dataDir, "filestore", item.name)),
+        })),
+      )
+      const backupDir = join(workspace.root, "backups")
+      const backups = await Promise.all(
+        (await readdir(backupDir, { withFileTypes: true }).catch(() => []))
+          .filter((entry) => entry.isFile() && /\.(dump|zip|sql)$/.test(entry.name))
+          .map(async (entry) => {
+            const info = await stat(join(backupDir, entry.name)).catch(() => undefined)
+            const size = info ? `${(info.size / (1024 * 1024)).toFixed(1)} MB` : ""
+            return { name: entry.name, size }
+          }),
+      )
+      return { databases, backups: backups.sort((a, b) => a.name.localeCompare(b.name)) }
+    },
+
+    databaseAction: async ({ directory, label, action, name, from, demo, file }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return "No Odoo workspace found for this directory"
+      const login = await postgresLogin(workspace)
+      if (!login) return "No Postgres service found in docker-compose.yml"
+      const environment =
+        workspace.environments.find((item) => item.label === label) ??
+        workspace.environments.find((item) => item.active) ??
+        workspace.environments[0]
+      if (!environment) return "Configuration not found"
+      const target = safeDatabaseName(name)
+      if (target === "") return "Write a database name"
+      const terminate = (database: string) =>
+        runSql(
+          workspace,
+          "postgres",
+          `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${database.replace(/'/g, "''")}' AND pid <> pg_backend_pid()`,
+        )
+
+      if (action === "create") {
+        const created = await runSql(workspace, "postgres", `CREATE DATABASE ${quoteIdentifier(target)}`)
+        if (!created.ok) return created.error || "Could not create the database"
+        const launch = environmentLaunchCommand(workspace, environment)
+        const args = [
+          "-d",
+          target,
+          "-i",
+          "base",
+          "--stop-after-init",
+          "--no-http",
+          ...(demo ? [] : ["--without-demo=all"]),
+        ]
+        const failure = await command(launch[0] ?? "python3", [...launch.slice(1), ...args], workspace.root)
+        return failure ?? `Created ${target}${demo ? " with demo data" : ""}`
+      }
+
+      if (action === "duplicate") {
+        const source = safeDatabaseName(from)
+        if (source === "") return "Choose the database to copy"
+        await terminate(source)
+        const copied = await runSql(
+          workspace,
+          "postgres",
+          `CREATE DATABASE ${quoteIdentifier(target)} TEMPLATE ${quoteIdentifier(source)}`,
+        )
+        if (!copied.ok) return copied.error || "Could not duplicate the database"
+        const text = await readFile(environment.confPath, "utf8").catch(() => "")
+        const dataDir = getString(parseOdooConfig(text), "data_dir") ?? join(workspace.root, ".odoo-data")
+        const origin = join(dataDir, "filestore", source)
+        if (await pathExists(origin)) await cp(origin, join(dataDir, "filestore", target), { recursive: true, force: true })
+        return `Duplicated ${source} into ${target}`
+      }
+
+      if (action === "drop") {
+        if (["postgres", "template0", "template1"].includes(target)) return "That database cannot be dropped"
+        await terminate(target)
+        const dropped = await runSql(workspace, "postgres", `DROP DATABASE ${quoteIdentifier(target)}`)
+        return dropped.ok ? `Dropped ${target}` : dropped.error || "Could not drop the database"
+      }
+
+      if (action === "backup") {
+        const dir = join(workspace.root, "backups")
+        await mkdir(dir, { recursive: true })
+        const path = join(dir, `${target}.dump`)
+        const failure = await commandToFile(
+          ["docker", "compose", "-f", login.compose, "exec", "-T", login.service, "pg_dump", "-U", login.user, "-Fc", "-d", target],
+          path,
+        )
+        return failure ?? `Saved ${path}`
+      }
+
+      const source = join(workspace.root, "backups", file)
+      if (!(await pathExists(source))) return "Choose a backup file"
+      const created = await runSql(workspace, "postgres", `CREATE DATABASE ${quoteIdentifier(target)}`)
+      if (!created.ok) return created.error || "Could not create the database"
+      const failure = await commandFromFile(
+        [
+          "docker",
+          "compose",
+          "-f",
+          login.compose,
+          "exec",
+          "-T",
+          login.service,
+          "pg_restore",
+          "-U",
+          login.user,
+          "-d",
+          target,
+          "--no-owner",
+          "--no-privileges",
+        ],
+        source,
+      )
+      return failure ?? `Restored ${file} into ${target}`
+    },
+
+    modules: async ({ directory, database }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace || database === "") return { modules: [] }
+      const listed = await runSql(
+        workspace,
+        database,
+        "SELECT name, state, latest_version FROM ir_module_module ORDER BY name",
+      )
+      return { modules: parseModules(listed.stdout) }
+    },
+
+    moduleAction: async ({ directory, label, database, module: name, action }) => {
+      if (moduleJob?.running) return { started: false, message: "A module operation is already running" }
+      const workspace = await resolveWorkspace(directory)
+      const environment = workspace?.environments.find((item) => item.label === label)
+      if (!workspace || !environment) return { started: false, message: "Configuration not found" }
+      if (database === "") return { started: false, message: "Choose a database" }
+      const launch = environmentLaunchCommand(workspace, environment)
+      const args = [
+        "-d",
+        database,
+        action === "install" ? "-i" : "-u",
+        name,
+        "--stop-after-init",
+        "--no-http",
+      ]
+      if (action === "test") args.push("--test-enable", "--test-tags", "/module")
+      const log = join(workspace.root, ".odoo-run", `${label.replace(/[^a-zA-Z0-9_-]/g, "_")}-modules.log`)
+      await mkdir(dirname(log), { recursive: true })
+      const job: ModuleJob = {
+        running: true,
+        action,
+        module: name,
+        database,
+        message: `${action} ${name}…`,
+        startedAt: Date.now(),
+      }
+      moduleJob = job
+      const output = createWriteStream(log, { flags: "a" })
+      const child = spawn(launch[0] ?? "python3", [...launch.slice(1), ...args], {
+        cwd: workspace.root,
+        env: commandEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+      })
+      let tail = ""
+      const append = (chunk: Buffer) => {
+        const text = chunk.toString()
+        tail = (tail + text).slice(-2000)
+        output.write(text)
+      }
+      child.stdout.on("data", append)
+      child.stderr.on("data", append)
+      child.on("error", (error) => {
+        output.end()
+        job.running = false
+        job.message = String(error)
+      })
+      child.on("close", (code) => {
+        output.end()
+        job.running = false
+        job.message =
+          code === 0
+            ? `${action} ${name} finished`
+            : tail.trim().split("\n").slice(-3).join(" ").trim() || `exit ${code}`
+      })
+      return { started: true, message: "" }
+    },
+
+    moduleStatus: async () => {
+      const job = moduleJob
+      return {
+        running: job?.running ?? false,
+        action: job?.action ?? "",
+        module: job?.module ?? "",
+        database: job?.database ?? "",
+        message: job?.message ?? "",
+      }
+    },
+
+    debugStart: async ({ directory, label }) => {
+      const workspace = await resolveWorkspace(directory)
+      const environment = workspace?.environments.find((item) => item.label === label)
+      if (!workspace || !environment) return { started: false, message: "Configuration not found" }
+      const venv = await venvFor(workspace, environment)
+      const runner = venv === "" ? undefined : await pipInstall(venv, ["debugpy"])
+      if (!runner) return { started: false, message: "No virtualenv found for this configuration" }
+      const installed = await command(runner.file, runner.args, workspace.root)
+      if (installed) return { started: false, message: installed }
+      const launch = environmentLaunchCommand(workspace, environment)
+      const pidPath = pidFile(workspace.root, `${label}-debug`)
+      const log = join(workspace.root, ".odoo-run", `${label.replace(/[^a-zA-Z0-9_-]/g, "_")}-debug.log`)
+      await stopProcess(pidPath)
+      const pid = await startProcess(
+        [launch[0] ?? "python3", "-m", "debugpy", "--listen", "127.0.0.1:5678", ...launch.slice(1)],
+        { pidFile: pidPath, cwd: workspace.root, logFile: log, env: commandEnv() },
+      )
+      await writeLaunchConfig(workspace.root).catch(() => undefined)
+      return {
+        started: true,
+        message: `Debug listening on 127.0.0.1:5678 (pid ${pid}). Attach with "Odoo: attach" in VS Code.`,
+      }
+    },
+
+    debugStop: async ({ directory, label }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return "No Odoo workspace found for this directory"
+      const stopped = await stopProcess(pidFile(workspace.root, `${label}-debug`))
+      return stopped ? "Debug session stopped" : "No debug session running"
     },
 
     addons: async ({ directory, label }) => addonsState(directory, label),

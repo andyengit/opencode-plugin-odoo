@@ -11,6 +11,7 @@ export const CONF_KEYS = [
   "limit_time_cpu",
   "limit_time_real",
   "log_level",
+  "dev",
 ] as const
 
 /** Options the panel manages elsewhere (the addons list and the workspace scaffold), so they are not listed as added. */
