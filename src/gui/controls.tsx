@@ -711,7 +711,12 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
               </Show>
 
               <Show when={section() === "logs"}>
-                <LogsSection odoo={props.odoo} directory={props.directory} labels={workspace().environments} />
+                <LogsSection
+                  odoo={props.odoo}
+                  directory={props.directory}
+                  labels={workspace().environments}
+                  active={active()}
+                />
               </Show>
             </div>
           )
@@ -2908,23 +2913,44 @@ function DatabasesSection(props: { odoo: OdooClient; directory: string; label: s
   )
 }
 
-function LogsSection(props: { odoo: OdooClient; directory: string; labels: readonly string[] }) {
+function LogsSection(props: {
+  odoo: OdooClient
+  directory: string
+  labels: readonly string[]
+  active?: string
+}) {
   const ctx = usePlugin()
-  const [label, setLabel] = createSignal(props.labels[0] ?? "")
+  const [label, setLabel] = createSignal(props.active || props.labels[0] || "")
   const [text, setText] = createSignal("")
+  const [path, setPath] = createSignal("")
   const [errorsOnly, setErrorsOnly] = createSignal(false)
+  let pre: HTMLPreElement | undefined
+  let follow = true
 
   const load = () =>
     void props.odoo
       .log({ directory: props.directory, label: label() })
-      .then(setText)
-      .catch(() => setText(""))
+      .then((next) => {
+        setText(next.text)
+        setPath(next.path)
+        queueMicrotask(() => {
+          if (pre && follow) pre.scrollTop = pre.scrollHeight
+        })
+      })
+      .catch((error: unknown) => setText(`(${String(error)})`))
 
   onMount(() => {
     load()
-    const timer = setInterval(load, 2000)
+    const timer = setInterval(load, 1500)
     onCleanup(() => clearInterval(timer))
   })
+  // Keep following the configuration that is active right now, unless the user picks another one.
+  createKeyed(
+    () => props.active,
+    (value) => {
+      if (value) setLabel(value)
+    },
+  )
   createKeyed(
     () => label(),
     () => load(),
@@ -2932,11 +2958,11 @@ function LogsSection(props: { odoo: OdooClient; directory: string; labels: reado
 
   const lines = () => {
     const all = text().split("\n")
-    return (errorsOnly() ? all.filter((line) => /ERROR|CRITICAL|Traceback|WARNING/.test(line)) : all).slice(-200)
+    return (errorsOnly() ? all.filter((line) => /ERROR|CRITICAL|Traceback|WARNING/.test(line)) : all).slice(-300)
   }
 
   return (
-    <div class="flex flex-col gap-2">
+    <div class="flex flex-col gap-2 min-h-0">
       <div class="flex items-center gap-1">
         <ctx.ui.Select
           options={props.labels.map((item) => ({ value: item, label: item }))}
@@ -2947,8 +2973,18 @@ function LogsSection(props: { odoo: OdooClient; directory: string; labels: reado
         />
         <ctx.ui.Switch label={ctx.t("errorsOnly")} hideLabel checked={errorsOnly()} onChange={setErrorsOnly} />
       </div>
+      <Show when={path() !== ""}>
+        <span class="text-[11px] opacity-50 px-1 truncate" style={{ "font-family": "var(--font-family-mono, monospace)" }} title={path()}>
+          {path()}
+        </span>
+      </Show>
       <pre
-        class="text-[11px] whitespace-pre-wrap overflow-auto max-h-80 p-2"
+        ref={pre}
+        onScroll={() => {
+          if (!pre) return
+          follow = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40
+        }}
+        class="text-[11px] whitespace-pre-wrap overflow-auto max-h-[60vh] min-h-40 p-2"
         style={{ "font-family": "var(--font-family-mono, monospace)" }}
       >
         {lines().join("\n") || "(no output yet)"}

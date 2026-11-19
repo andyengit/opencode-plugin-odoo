@@ -1,8 +1,8 @@
 import { execFile, spawn } from "node:child_process"
 import { createReadStream, createWriteStream } from "node:fs"
-import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, writeFile } from "node:fs/promises"
+import { access, chmod, cp, mkdir, mkdtemp, open, readFile, readdir, readlink, rm, stat, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
-import { dirname, join, resolve, sep } from "node:path"
+import { dirname, isAbsolute, join, resolve, sep } from "node:path"
 import { Readable } from "node:stream"
 import { promisify } from "node:util"
 import { Schema } from "effect"
@@ -301,6 +301,34 @@ function summarize(workspace: OdooWorkspace): WorkspaceSummary {
 
 function pidFile(workspace: string, label: string): string {
   return `${workspace}/.odoo-run/${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.pid`
+}
+
+/** Reads the end of a file without loading the whole log into memory. */
+async function tailFile(path: string, maxBytes = 256 * 1024): Promise<string> {
+  const handle = await open(path, "r").catch(() => undefined)
+  if (!handle) return ""
+  try {
+    const info = await handle.stat()
+    const start = Math.max(0, info.size - maxBytes)
+    const length = info.size - start
+    if (length === 0) return ""
+    const buffer = Buffer.alloc(length)
+    await handle.read(buffer, 0, length, start)
+    return buffer.toString("utf8")
+  } finally {
+    await handle.close().catch(() => undefined)
+  }
+}
+
+/** The log Odoo writes for a configuration: its `logfile` option, else the runner's output file. */
+async function logFileFor(workspace: OdooWorkspace, environment: OdooEnvironment | undefined, label: string) {
+  const conf = environment ? await readFile(environment.confPath, "utf8").catch(() => "") : ""
+  const configured = getString(parseOdooConfig(conf), "logfile") ?? ""
+  const fallbackName = (environment?.label ?? label).replace(/[^a-zA-Z0-9_-]/g, "_")
+  const fallback = `${workspace.root}/.odoo-run/${fallbackName}.log`
+  if (configured === "" || /^(none|false)$/i.test(configured)) return fallback
+  const path = isAbsolute(configured) ? configured : join(workspace.root, configured)
+  return (await pathExists(path)) ? path : fallback
 }
 
 /** Adds (or replaces) an attach configuration in the workspace's `.vscode/launch.json`. */
@@ -1195,10 +1223,17 @@ const setup: Plugin.MainSetup = (ctx) => {
 
     log: async ({ directory, label }) => {
       const workspace = await resolveWorkspace(directory)
-      if (!workspace) return ""
-      const logFile = `${workspace.root}/.odoo-run/${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.log`
-      const text = await readFile(logFile, "utf8").catch(() => "")
-      return text.trim().split("\n").slice(-200).join("\n") || "(no output yet)"
+      if (!workspace) return { text: "", path: "" }
+      const environment =
+        workspace.environments.find((item) => item.label === label) ??
+        workspace.environments.find((item) => item.active) ??
+        workspace.environments[0]
+      const path = await logFileFor(workspace, environment, label)
+      const text = await tailFile(path)
+      return {
+        text: text.trim().split("\n").slice(-300).join("\n") || "(no output yet)",
+        path,
+      }
     },
 
     confValues: async ({ directory, label }) => {

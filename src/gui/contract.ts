@@ -279,7 +279,7 @@ export const Odoo = Ipc.define({
     },
     log: {
       input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
-      output: Schema.String,
+      output: Schema.Struct({ text: Schema.String, path: Schema.String }),
     },
     confValues: {
       input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
