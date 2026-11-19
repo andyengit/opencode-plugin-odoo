@@ -11,7 +11,7 @@ export default {
   pythonAuto: "Automatic (uv default)",
   pythonRecreate: "Change Python",
   pythonRecreateHint:
-    "The virtualenv is deleted and its requirements are installed again with Python {python}. Packages installed by hand are lost.",
+    "The virtualenv is deleted and its requirements are installed again with Python {python}. Packages saved in requirements-local.txt are reinstalled too.",
   installing: "Installing…",
   installCloning: "Cloning Odoo…",
   installVenv: "Creating virtualenv…",
