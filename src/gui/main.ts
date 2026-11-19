@@ -299,6 +299,18 @@ function configValueText(value: string | boolean | string[]): string {
   return typeof value === "boolean" ? (value ? "True" : "False") : value
 }
 
+/** The `major.minor` Python of a virtualenv, empty when it has none. */
+async function venvPythonVersion(venv: string): Promise<string> {
+  return execFileAsync(
+    join(venv, "bin", "python"),
+    ["-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
+    { env: commandEnv(), maxBuffer: 1024 * 1024 },
+  ).then(
+    (result) => result.stdout.trim(),
+    () => "",
+  )
+}
+
 async function postgresState(workspace: OdooWorkspace): Promise<WorkspaceStatus["postgres"]> {
   if (!workspace.dockerComposePath) return "none"
   const service = parseDockerCompose(await readFile(workspace.dockerComposePath, "utf8"))[0]
@@ -1209,6 +1221,53 @@ const setup: Plugin.MainSetup = (ctx) => {
         message: job?.message ?? "",
         startedAt: job?.startedAt ?? 0,
       }
+    },
+
+    venvPython: async ({ directory, version }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { python: "" }
+      return { python: await venvPythonVersion(join(workspace.root, "bin", version, ".venv")) }
+    },
+
+    /** Recreates a version's virtualenv with another Python and installs its requirements again. */
+    venvRecreate: async ({ directory, version, python }) => {
+      if (installJob?.running) return { started: false, message: "An installation is already running" }
+      const workspace = await resolveWorkspace(directory)
+      const info = workspace?.versions.find((item) => item.name === version)
+      if (!workspace || !info) return { started: false, message: `Version "${version}" not found` }
+      const chosen = python.trim()
+      if (chosen === "") return { started: false, message: "Choose a Python version" }
+      const current = await venvPythonVersion(join(workspace.root, "bin", version, ".venv"))
+      if (current === chosen) return { started: false, message: `Already using Python ${current}` }
+      const job: InstallJob = {
+        running: true,
+        version: info.series,
+        conf: "",
+        step: "",
+        message: "",
+        startedAt: Date.now(),
+      }
+      installJob = job
+      void installOdoo(
+        directory,
+        info.series,
+        (step) => {
+          job.step = step
+        },
+        chosen,
+      ).then(
+        (message) => {
+          job.running = false
+          job.step = "done"
+          job.message = message
+        },
+        (error: unknown) => {
+          job.running = false
+          job.step = "error"
+          job.message = String(error)
+        },
+      )
+      return { started: true, message: "" }
     },
 
     addons: async ({ directory, label }) => addonsState(directory, label),

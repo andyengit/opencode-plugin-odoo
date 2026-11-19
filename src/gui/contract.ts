@@ -317,6 +317,14 @@ export const Odoo = Ipc.define({
       input: Schema.Struct({}),
       output: PythonStatus,
     },
+    venvPython: {
+      input: Schema.Struct({ directory: Schema.String, version: Schema.String }),
+      output: Schema.Struct({ python: Schema.String }),
+    },
+    venvRecreate: {
+      input: Schema.Struct({ directory: Schema.String, version: Schema.String, python: Schema.String }),
+      output: Schema.Struct({ started: Schema.Boolean, message: Schema.String }),
+    },
     addons: {
       input: Schema.Struct({ directory: Schema.String, label: Schema.String }),
       output: AddonsState,

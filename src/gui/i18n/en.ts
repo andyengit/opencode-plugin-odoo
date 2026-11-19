@@ -9,6 +9,9 @@ export default {
   installOdoo: "Install Odoo",
   pythonVersion: "Python",
   pythonAuto: "Automatic (uv default)",
+  pythonRecreate: "Change Python",
+  pythonRecreateHint:
+    "The virtualenv is deleted and its requirements are installed again with Python {python}. Packages installed by hand are lost.",
   installing: "Installing…",
   installCloning: "Cloning Odoo…",
   installVenv: "Creating virtualenv…",

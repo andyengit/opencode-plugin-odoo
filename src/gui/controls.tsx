@@ -1656,6 +1656,9 @@ function PythonPackages(props: { odoo: OdooClient; directory: string; version: s
   const ctx = usePlugin()
   const [packages, setPackages] = createSignal("")
   const [status, setStatus] = createSignal<PythonStatus | undefined>()
+  const [venv, setVenv] = createSignal("")
+  const [target, setTarget] = createSignal("")
+  const [working, setWorking] = createSignal(false)
 
   const load = () =>
     void props.odoo
@@ -1663,7 +1666,19 @@ function PythonPackages(props: { odoo: OdooClient; directory: string; version: s
       .then(setStatus)
       .catch(() => undefined)
 
-  onMount(load)
+  const loadVenv = () =>
+    void props.odoo
+      .venvPython({ directory: props.directory, version: props.version })
+      .then((result) => {
+        setVenv(result.python)
+        setTarget((current) => (current === "" ? result.python : current))
+      })
+      .catch(() => setVenv(""))
+
+  onMount(() => {
+    load()
+    loadVenv()
+  })
   createKeyed(
     () => status()?.running,
     (running) => {
@@ -1705,9 +1720,69 @@ function PythonPackages(props: { odoo: OdooClient; directory: string; version: s
     load()
   }
 
+  const changePython = () => {
+    const chosen = target()
+    if (chosen === "" || chosen === venv()) return
+    ctx.dialogs.open((dialog) => (
+      <ctx.ui.Dialog
+        title={ctx.t("pythonRecreate")}
+        description={`bin/${props.version}/.venv`}
+        footer={
+          <>
+            <ctx.ui.Button variant="ghost" onClick={dialog.close}>
+              {ctx.t("cancel")}
+            </ctx.ui.Button>
+            <ctx.ui.Button
+              variant="danger"
+              onClick={() => {
+                dialog.close()
+                void (async () => {
+                  setWorking(true)
+                  const result = await props.odoo
+                    .venvRecreate({ directory: props.directory, version: props.version, python: chosen })
+                    .catch((error: unknown) => ({ started: false, message: String(error) }))
+                  setWorking(false)
+                  ctx.toast.show({
+                    title: result.started ? `${ctx.t("pythonRecreate")} → ${chosen}` : result.message,
+                    variant: result.started ? "success" : "error",
+                  })
+                  if (result.started) loadVenv()
+                })()
+              }}
+            >
+              {ctx.t("pythonRecreate")}
+            </ctx.ui.Button>
+          </>
+        }
+      >
+        <span class="text-xs opacity-70">{ctx.t("pythonRecreateHint").replace("{python}", chosen)}</span>
+      </ctx.ui.Dialog>
+    ))
+  }
+
   return (
     <div class="flex flex-col gap-2">
-      <span class="text-[11px] opacity-50 px-1">{`bin/${props.version}/.venv · ${ctx.t("pythonHint")}`}</span>
+      <span class="text-[11px] opacity-50 px-1">
+        {`bin/${props.version}/.venv · Python ${venv() || "?"} · ${ctx.t("pythonHint")}`}
+      </span>
+      <div class="flex items-center gap-1">
+        <ctx.ui.Select
+          options={PYTHON_VERSIONS.map((version) => ({ value: version, label: version }))}
+          value={target() || undefined}
+          onChange={setTarget}
+          label={ctx.t("pythonVersion")}
+          class="flex-1"
+        />
+        <ctx.ui.Button
+          size="small"
+          variant="ghost"
+          busy={working()}
+          disabled={target() === "" || target() === venv()}
+          onClick={changePython}
+        >
+          {ctx.t("pythonRecreate")}
+        </ctx.ui.Button>
+      </div>
       <div class="flex items-center gap-1">
         <ctx.ui.TextInput
           value={packages()}
