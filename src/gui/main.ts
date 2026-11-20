@@ -1039,7 +1039,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         step("repos")
         const [stackResponse, environmentResponse] = await Promise.all([
           adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`),
-          adooGet(`/api/v1/environments/${encodeURIComponent(environment)}`),
+          adooGet(`/api/v1/environments/${encodeURIComponent(environment)}/repositories`),
         ])
         const merged = mergeRepos(
           stackResponse?.status === 200 ? stackResponse.body : undefined,
@@ -2000,10 +2000,10 @@ const setup: Plugin.MainSetup = (ctx) => {
       if (!workspace) return { started: false, message: "No Odoo workspace found for this directory" }
       const [stackResponse, environmentResponse] = await Promise.all([
         stack === "" ? Promise.resolve(undefined) : adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`),
-        adooGet(`/api/v1/environments/${encodeURIComponent(environment)}`),
+        adooGet(`/api/v1/environments/${encodeURIComponent(environment)}/repositories`),
       ])
       if (!stackResponse && !environmentResponse) return { started: false, message: "adoo.live is not connected" }
-      // The environment can own repositories that are not part of its stack.
+      // The environment repositories endpoint includes the project's extra addons, which the stack does not have.
       const repos = mergeRepos(
         stackResponse?.status === 200 ? stackResponse.body : undefined,
         environmentResponse?.status === 200 ? environmentResponse.body : undefined,

@@ -39,8 +39,8 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - Login con **OAuth device flow** (scope `profile read database`) y renovación de token.
 - Lista de ambientes con búsqueda, proyectos y stacks.
 - **Sync** de repositorios del stack **y del ambiente**: clona los que faltan y hace `pull`
-  (incluidos privados por SSH). El ambiente puede tener repositorios que no están en su stack;
-  ambos se combinan sin duplicados.
+  (incluidos privados por SSH). Lee `/environments/<id>/repositories` (`unified_repos`), así que
+  incluye los addons extra del proyecto que no están en el stack; ambos se combinan sin duplicados.
 - **Rebuild**: descarga el backup con `database-pulls` (dump custom o zip con filestore),
   lo guarda en `backups/`, crea la base local, restaura, copia el filestore, neutraliza
   (opcional), sincroniza repos (opcional) y muestra progreso con MB, MB/s y ETA.
