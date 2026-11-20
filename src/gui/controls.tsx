@@ -3071,6 +3071,20 @@ function LogsSection(props: {
           class="flex-1"
         />
         <ctx.ui.Switch label={ctx.t("errorsOnly")} hideLabel checked={errorsOnly()} onChange={setErrorsOnly} />
+        <ctx.ui.Tooltip value={ctx.t("copyLog")}>
+          <ctx.ui.IconButton
+            icon="copy"
+            label={ctx.t("copyLog")}
+            size="small"
+            variant="ghost"
+            onClick={() =>
+              void ctx.system
+                .copy(lines().join("\n"))
+                .then(() => ctx.toast.show({ title: ctx.t("copied") }))
+                .catch(() => undefined)
+            }
+          />
+        </ctx.ui.Tooltip>
       </div>
       <Show when={path() !== ""}>
         <span class="text-[11px] opacity-50 px-1 truncate" style={{ "font-family": "var(--font-family-mono, monospace)" }} title={path()}>
@@ -3084,7 +3098,12 @@ function LogsSection(props: {
           follow = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40
         }}
         class="text-[11px] whitespace-pre-wrap overflow-auto max-h-[60vh] min-h-40 p-2"
-        style={{ "font-family": "var(--font-family-mono, monospace)" }}
+        style={{
+          "font-family": "var(--font-family-mono, monospace)",
+          "user-select": "text",
+          "-webkit-user-select": "text",
+          cursor: "text",
+        }}
       >
         <LogLines lines={lines().length === 0 ? ["(no output)"] : lines()} />
       </pre>

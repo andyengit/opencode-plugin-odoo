@@ -264,6 +264,8 @@ export default {
   gitOperation: "Git operation in progress",
   gitStaleHint: "The plugin was updated; restart OpenCode to load the new git actions.",
   gitCopyPath: "Copy path",
+  copyLog: "Copy log",
+  copied: "Copied",
   gitReveal: "Show in file manager",
   gitDiscard: "Discard changes",
   gitDiscardHint: "The changes in this file are lost.",

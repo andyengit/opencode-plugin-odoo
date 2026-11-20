@@ -186,11 +186,32 @@ export function UpdateReposDialog(props: {
         </Show>
         <Show when={logText() !== ""}>
           <div class="flex flex-col gap-1">
-            <span class="text-[11px] opacity-50 px-1">{ctx.t("repoUpdateLog")}</span>
+            <div class="flex items-center gap-1">
+              <span class="flex-1 text-[11px] opacity-50 px-1">{ctx.t("repoUpdateLog")}</span>
+              <ctx.ui.Tooltip value={ctx.t("copyLog")}>
+                <ctx.ui.IconButton
+                  icon="copy"
+                  label={ctx.t("copyLog")}
+                  size="small"
+                  variant="ghost"
+                  onClick={() =>
+                    void ctx.system
+                      .copy(logText())
+                      .then(() => ctx.toast.show({ title: ctx.t("copied") }))
+                      .catch(() => undefined)
+                  }
+                />
+              </ctx.ui.Tooltip>
+            </div>
             <pre
               ref={logPre}
               class="text-[11px] whitespace-pre-wrap max-h-40 overflow-auto p-2"
-              style={{ "font-family": "var(--font-family-mono, monospace)" }}
+              style={{
+                "font-family": "var(--font-family-mono, monospace)",
+                "user-select": "text",
+                "-webkit-user-select": "text",
+                cursor: "text",
+              }}
             >
               {logText()}
             </pre>

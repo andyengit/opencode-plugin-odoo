@@ -51,12 +51,33 @@ export function LogView(props: { odoo: OdooClient; directory: string; label: str
     <div class="flex flex-col gap-2 min-h-0">
       <div class="flex items-center justify-between gap-2">
         <span class="text-[11px] opacity-50 truncate">{path() || `${props.directory}/.odoo-run/${props.label}.log`}</span>
-        <ctx.ui.IconButton icon="outline-rotate-clockwise" label={ctx.t("refresh")} size="small" onClick={load} />
+        <div class="flex items-center gap-1">
+          <ctx.ui.Tooltip value={ctx.t("copyLog")}>
+            <ctx.ui.IconButton
+              icon="copy"
+              label={ctx.t("copyLog")}
+              size="small"
+              variant="ghost"
+              onClick={() =>
+                void ctx.system
+                  .copy(text())
+                  .then(() => ctx.toast.show({ title: ctx.t("copied") }))
+                  .catch(() => undefined)
+              }
+            />
+          </ctx.ui.Tooltip>
+          <ctx.ui.IconButton icon="outline-rotate-clockwise" label={ctx.t("refresh")} size="small" onClick={load} />
+        </div>
       </div>
       <pre
         ref={pre}
         class="text-[12px] whitespace-pre-wrap overflow-auto max-h-[60vh] p-2"
-        style={{ "font-family": "var(--font-family-mono, monospace)" }}
+        style={{
+          "font-family": "var(--font-family-mono, monospace)",
+          "user-select": "text",
+          "-webkit-user-select": "text",
+          cursor: "text",
+        }}
       >
         <LogLines lines={text().split("\n")} />
       </pre>

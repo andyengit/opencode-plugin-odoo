@@ -423,7 +423,12 @@ export function GitPanel(props: {
           >
             <div
               class={wrap() ? "text-[11px] overflow-auto max-h-[60vh] p-2 whitespace-pre-wrap break-all" : "text-[11px] overflow-auto max-h-[60vh] p-2 whitespace-pre"}
-              style={{ "font-family": "var(--font-family-mono, monospace)" }}
+              style={{
+                "font-family": "var(--font-family-mono, monospace)",
+                "user-select": "text",
+                "-webkit-user-select": "text",
+                cursor: "text",
+              }}
             >
               <Index each={lines()}>
                 {(line) => <div style={{ color: diffColor(line()) }}>{line() === "" ? " " : line()}</div>}
@@ -458,14 +463,24 @@ export function GitPanel(props: {
               <Show when={value().stat !== ""}>
                 <pre
                   class="text-[11px] whitespace-pre-wrap max-h-40 overflow-auto p-2"
-                  style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                  style={{
+                    "font-family": "var(--font-family-mono, monospace)",
+                    "user-select": "text",
+                    "-webkit-user-select": "text",
+                    cursor: "text",
+                  }}
                 >
                   {value().stat}
                 </pre>
               </Show>
               <div
                 class="text-[11px] overflow-auto max-h-[50vh] p-2 whitespace-pre"
-                style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                style={{
+                  "font-family": "var(--font-family-mono, monospace)",
+                  "user-select": "text",
+                  "-webkit-user-select": "text",
+                  cursor: "text",
+                }}
               >
                 <Index each={value().diff.split("\n")}>
                   {(line) => <div style={{ color: diffColor(line()) }}>{line() === "" ? " " : line()}</div>}
@@ -664,7 +679,12 @@ export function GitPanel(props: {
             <Show when={content() !== ""}>
               <pre
                 class="text-[11px] whitespace-pre-wrap max-h-24 overflow-auto p-2"
-                style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                style={{
+                  "font-family": "var(--font-family-mono, monospace)",
+                  "user-select": "text",
+                  "-webkit-user-select": "text",
+                  cursor: "text",
+                }}
               >
                 {content()}
               </pre>

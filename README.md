@@ -102,7 +102,7 @@ El panel lateral se organiza en secciones (barra superior del panel):
 - **Configuration** — `odoo.conf` (valores, secciones como `[queue_job]`, opciones añadidas), addons con requisitos, Python del venv y paquetes.
 - **Modules** — módulos de la base elegida: instalar, actualizar y ejecutar tests.
 - **Database** — bases locales (tamaño y filestore), crear con/sin demo, duplicar, borrar, backup y restore.
-- **Logs** — sigue en vivo el log del `odoo.conf` activo (`logfile` o `.odoo-run/<label>.log`), con autoscroll, colores por nivel y filtro de errores.
+- **Logs** — sigue en vivo el log del `odoo.conf` activo (`logfile` o `.odoo-run/<label>.log`), con autoscroll, colores por nivel y filtro de errores. El texto se puede seleccionar y copiar, y el botón **Copy log** copia lo visible.
 - **adoo.live** y **XML-RPC**.
 
 ### Ciclo de desarrollo
