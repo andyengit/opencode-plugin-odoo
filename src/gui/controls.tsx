@@ -1131,10 +1131,6 @@ function AdooAccount(props: { odoo: OdooClient; directory: string }) {
   }
 
   const sync = async (item: AdooItem) => {
-    if (!item.stack) {
-      ctx.toast.show({ title: ctx.t("adooNoStack") })
-      return
-    }
     setBusy(item.id)
     const result = await props.odoo
       .adooSync({ directory: props.directory, stack: item.stack, environment: item.id })

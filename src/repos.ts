@@ -10,18 +10,85 @@ export interface StackRepo {
 }
 
 export function parseStackRepos(body: unknown): StackRepo[] {
-  const record = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {}
-  const list = Array.isArray(record.addon_repos) ? record.addon_repos : Array.isArray(body) ? body : []
-  return list.flatMap((entry) => {
+  return listOf(body).flatMap((entry) => {
     if (typeof entry !== "object" || entry === null) return []
     const item = entry as Record<string, unknown>
-    const url = typeof item.url === "string" ? item.url.trim() : ""
+    const url = urlOf(item)
     if (url === "") return []
     const declared = typeof item.name === "string" ? item.name.trim() : ""
     const name = declared !== "" ? declared : (repoLocation(url)?.name ?? "")
-    const branch = typeof item.branch === "string" ? item.branch.trim() : ""
-    const auth = typeof item.git_auth_mode === "string" && item.git_auth_mode !== "" ? item.git_auth_mode : "public"
-    return [{ name, url, branch, auth }]
+    return [{ name, url, branch: branchOf(item), auth: authOf(item) }]
+  })
+}
+
+/** The array of repositories of a stack or environment detail, under any of the names adoo uses. */
+function listOf(body: unknown, depth = 0): unknown[] {
+  if (Array.isArray(body)) return body
+  if (depth > 2 || typeof body !== "object" || body === null) return []
+  const record = body as Record<string, unknown>
+  for (const key of ["addon_repos", "unified_repos", "repos", "repositories", "git_repos"]) {
+    if (Array.isArray(record[key])) return record[key]
+  }
+  // Some payloads nest the stack or the environment under its own key.
+  for (const key of ["stack", "environment", "settings", "git"]) {
+    const nested = record[key]
+    if (typeof nested === "object" && nested !== null) {
+      const found = listOf(nested, depth + 1)
+      if (found.length > 0) return found
+    }
+  }
+  return []
+}
+
+function urlOf(item: Record<string, unknown>): string {
+  for (const key of ["url", "git_url", "repo_url", "repository_url", "clone_url", "repository"]) {
+    const value = item[key]
+    if (typeof value === "string" && value.trim() !== "") return value.trim()
+  }
+  return ""
+}
+
+function branchOf(item: Record<string, unknown>): string {
+  for (const key of ["branch", "git_branch", "target_branch", "ref"]) {
+    const value = item[key]
+    if (typeof value === "string" && value.trim() !== "") return value.trim()
+  }
+  return ""
+}
+
+function authOf(item: Record<string, unknown>): string {
+  for (const key of ["git_auth_mode", "auth", "git_auth"]) {
+    const value = item[key]
+    if (typeof value === "string" && value !== "") return value
+  }
+  return "public"
+}
+
+/** A case-insensitive repository identity, ignoring a trailing `.git` and slashes. */
+export function repoKey(url: string): string {
+  return url.trim().replace(/\.git$/i, "").replace(/\/+$/, "").toLowerCase()
+}
+
+/**
+ * The repositories to sync: the stack's plus the ones the environment adds, without duplicates.
+ * An environment can own repositories that are not part of its stack.
+ */
+export function mergeRepos(stackBody: unknown, environmentBody?: unknown): StackRepo[] {
+  const environment =
+    environmentBody === undefined
+      ? []
+      : parseEnvironmentRepos(environmentBody).map((repo) => ({
+          name: repo.name,
+          url: repo.url,
+          branch: repo.branch,
+          auth: "public",
+        }))
+  const seen = new Set<string>()
+  return [...parseStackRepos(stackBody), ...environment].filter((repo) => {
+    const key = repoKey(repo.url)
+    if (key === "" || seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }
 
@@ -78,23 +145,17 @@ export interface EnvironmentRepo {
 }
 
 export function parseEnvironmentRepos(body: unknown): EnvironmentRepo[] {
-  const record = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {}
-  const list = Array.isArray(record.unified_repos)
-    ? record.unified_repos
-    : Array.isArray(record.repos)
-      ? record.repos
-      : []
-  return list.flatMap((entry) => {
+  return listOf(body).flatMap((entry) => {
     if (typeof entry !== "object" || entry === null) return []
     const item = entry as Record<string, unknown>
-    const url = typeof item.url === "string" ? item.url.trim() : ""
+    const url = urlOf(item)
     if (url === "") return []
     const declared = typeof item.name === "string" ? item.name.trim() : ""
     return [
       {
         name: declared !== "" ? declared : (repoLocation(url)?.name ?? ""),
         url,
-        branch: typeof item.branch === "string" ? item.branch.trim() : "",
+        branch: branchOf(item),
         commit:
           (typeof item.configured_commit === "string" ? item.configured_commit.trim() : "") ||
           (typeof item.commit === "string" ? item.commit.trim() : ""),

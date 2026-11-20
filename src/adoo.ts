@@ -240,7 +240,7 @@ export function normalizeItems(body: unknown): AdooItem[] {
         detail,
         url: text(record.access_url),
         database: text(record.db_name) || text(record.database_name),
-        stack: text(record.stack_id),
+        stack: text(record.stack_id) || text(record.stack),
         type: text(record.env_type),
       },
     ]

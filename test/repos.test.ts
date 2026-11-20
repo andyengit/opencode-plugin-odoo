@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { join } from "node:path"
-import { parseEnvironmentRepos, parseStackRepos, repoFolder, repoLocation, sameCommit, sshUrl } from "../src/repos"
+import {
+  mergeRepos,
+  parseEnvironmentRepos,
+  parseStackRepos,
+  repoFolder,
+  repoLocation,
+  sameCommit,
+  sshUrl,
+} from "../src/repos"
 
 describe("parseStackRepos", () => {
   test("reads the stack's configured repositories", () => {
@@ -33,8 +41,35 @@ describe("parseStackRepos", () => {
     expect(repos.map((repo) => repo.name)).toEqual(["web"])
   })
 
+  test("reads repositories under other field names and URL aliases", () => {
+    expect(
+      parseStackRepos({ repos: [{ name: "custom", git_url: "https://github.com/oca/custom", git_branch: "17.0" }] }),
+    ).toEqual([{ name: "custom", url: "https://github.com/oca/custom", branch: "17.0", auth: "public" }])
+  })
+
   test("returns nothing for an unexpected payload", () => {
     expect(parseStackRepos({ detail: "Not authenticated" })).toEqual([])
+  })
+})
+
+describe("mergeRepos", () => {
+  test("combines the stack and environment repositories without duplicates", () => {
+    const merged = mergeRepos(
+      { addon_repos: [{ name: "server-tools", url: "https://github.com/OCA/server-tools" }] },
+      {
+        unified_repos: [
+          { name: "server-tools", url: "https://github.com/OCA/server-tools.git" },
+          { name: "payroll", url: "https://github.com/poweredbyandy/payroll", branch: "18.0" },
+        ],
+      },
+    )
+    expect(merged.map((repo) => repo.name)).toEqual(["server-tools", "payroll"])
+  })
+
+  test("uses the environment repositories when the stack has none", () => {
+    expect(mergeRepos({}, { repos: [{ url: "https://github.com/oca/web" }] })).toEqual([
+      { name: "web", url: "https://github.com/oca/web", branch: "", auth: "public" },
+    ])
   })
 })
 

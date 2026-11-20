@@ -29,7 +29,7 @@ import { installSkillPack, skillPackStatus } from "../skillpack"
 import { addFolderToAddons, cloneRepository } from "../clone"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
-import { parseEnvironmentRepos, parseStackRepos, repoFolder, sameCommit, sshUrl } from "../repos"
+import { mergeRepos, parseEnvironmentRepos, repoFolder, sameCommit, sshUrl } from "../repos"
 import { missingRequirements, parseRequirements } from "../requirements"
 import { availableAddons } from "../addons"
 import { databaseName, parsePull, pullFailed, pullReady } from "../rebuild"
@@ -1037,9 +1037,16 @@ const setup: Plugin.MainSetup = (ctx) => {
 
       if (repos && stack !== "") {
         step("repos")
-        const response = await adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`)
-        if (response?.status === 200) {
-          const repos: SyncRepo[] = parseStackRepos(response.body).map((repo) => {
+        const [stackResponse, environmentResponse] = await Promise.all([
+          adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`),
+          adooGet(`/api/v1/environments/${encodeURIComponent(environment)}`),
+        ])
+        const merged = mergeRepos(
+          stackResponse?.status === 200 ? stackResponse.body : undefined,
+          environmentResponse?.status === 200 ? environmentResponse.body : undefined,
+        )
+        if (merged.length > 0) {
+          const syncRepos: SyncRepo[] = merged.map((repo) => {
             const folder = repoFolder(workspace.root, repo.url)
             return {
               path: folder?.relative ?? repo.name,
@@ -1051,7 +1058,7 @@ const setup: Plugin.MainSetup = (ctx) => {
               message: folder ? "" : "Unsupported repository URL",
             }
           })
-          await syncRepositories(repos, workspace)
+          await syncRepositories(syncRepos, workspace)
         }
       }
 
@@ -1991,13 +1998,25 @@ const setup: Plugin.MainSetup = (ctx) => {
       if (syncJob?.running) return { started: false, message: "A sync is already running" }
       const workspace = await resolveWorkspace(directory)
       if (!workspace) return { started: false, message: "No Odoo workspace found for this directory" }
-      const response = await adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`)
-      if (!response) return { started: false, message: "adoo.live is not connected" }
-      if (response.status !== 200) {
-        return { started: false, message: `adoo.live refused the stack (${response.status})` }
+      const [stackResponse, environmentResponse] = await Promise.all([
+        stack === "" ? Promise.resolve(undefined) : adooGet(`/api/v1/stacks/${encodeURIComponent(stack)}`),
+        adooGet(`/api/v1/environments/${encodeURIComponent(environment)}`),
+      ])
+      if (!stackResponse && !environmentResponse) return { started: false, message: "adoo.live is not connected" }
+      // The environment can own repositories that are not part of its stack.
+      const repos = mergeRepos(
+        stackResponse?.status === 200 ? stackResponse.body : undefined,
+        environmentResponse?.status === 200 ? environmentResponse.body : undefined,
+      )
+      if (repos.length === 0) {
+        return {
+          started: false,
+          message:
+            stackResponse && stackResponse.status !== 200
+              ? `adoo.live refused the stack (${stackResponse.status})`
+              : "This environment has no repositories",
+        }
       }
-      const repos = parseStackRepos(response.body)
-      if (repos.length === 0) return { started: false, message: "This stack has no repositories" }
 
       const job: SyncJob = {
         running: true,
