@@ -3,7 +3,7 @@ import { execSync } from "node:child_process"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { cloneRepository, normalizeRepoUrl } from "../src/clone"
+import { cloneRepository, isAuthFailure, normalizeRepoUrl, sshFallback } from "../src/clone"
 
 describe("normalizeRepoUrl", () => {
   test("accepts full URLs, scp URLs and the org/repo shorthand", () => {
@@ -19,6 +19,23 @@ describe("normalizeRepoUrl", () => {
 
   test("returns nothing for an empty value", () => {
     expect(normalizeRepoUrl("   ")).toBe("")
+  })
+})
+
+describe("SSH fallback", () => {
+  test("recognizes credential failures", () => {
+    expect(isAuthFailure("fatal: could not read Username for 'https://github.com': terminal prompts disabled")).toBe(
+      true,
+    )
+    expect(isAuthFailure("remote: Repository not found.")).toBe(true)
+    expect(isAuthFailure("fatal: destination path already exists")).toBe(false)
+  })
+
+  test("only converts HTTPS URLs", () => {
+    expect(sshFallback("https://github.com/poweredbyandy/vertical-sale.git")).toBe(
+      "git@github.com:poweredbyandy/vertical-sale.git",
+    )
+    expect(sshFallback("git@github.com:poweredbyandy/vertical-sale.git")).toBeUndefined()
   })
 })
 

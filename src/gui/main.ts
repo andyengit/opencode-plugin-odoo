@@ -26,7 +26,7 @@ import { resolveWorkspace, type OdooEnvironment, type OdooWorkspace } from "../w
 import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "../scaffold"
 import { installOdoo, pipInstall, type InstallStep } from "../install"
 import { installSkillPack, skillPackStatus } from "../skillpack"
-import { addFolderToAddons, cloneRepository } from "../clone"
+import { addFolderToAddons, cloneRepository, isAuthFailure, sshFallback } from "../clone"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { mergeRepos, parseEnvironmentRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -842,7 +842,14 @@ const setup: Plugin.MainSetup = (ctx) => {
       const cloned = await pathExists(join(repo.folder, ".git"))
       if (cloned) {
         repo.state = "pull"
-        const failure = await git(["-C", repo.folder, "pull", "--ff-only"])
+        let failure = await git(["-C", repo.folder, "pull", "--ff-only"])
+        if (failure && isAuthFailure(failure)) {
+          // The clone came from HTTPS but the repository needs credentials: switch its remote to SSH.
+          const fallback = sshFallback(repo.url)
+          if (fallback && !(await git(["-C", repo.folder, "remote", "set-url", "origin", fallback]))) {
+            failure = await git(["-C", repo.folder, "pull", "--ff-only"])
+          }
+        }
         if (failure) {
           repo.state = "error"
           repo.message = failure
@@ -853,10 +860,18 @@ const setup: Plugin.MainSetup = (ctx) => {
         continue
       }
       repo.state = "clone"
-      const args = repo.branch
-        ? ["clone", "--branch", repo.branch, cloneUrl(repo), repo.folder]
-        : ["clone", cloneUrl(repo), repo.folder]
-      const failure = await git(args)
+      const target = cloneUrl(repo)
+      const argsFor = (url: string) =>
+        repo.branch ? ["clone", "--branch", repo.branch, url, repo.folder] : ["clone", url, repo.folder]
+      let failure = await git(argsFor(target))
+      if (failure) {
+        const fallback = sshFallback(target)
+        if (fallback && isAuthFailure(failure)) {
+          await rm(repo.folder, { recursive: true, force: true }).catch(() => undefined)
+          await mkdir(dirname(repo.folder), { recursive: true })
+          failure = await git(argsFor(fallback))
+        }
+      }
       if (failure) {
         repo.state = "error"
         repo.message = failure

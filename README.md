@@ -41,6 +41,8 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - **Sync** de repositorios del stack **y del ambiente**: clona los que faltan y hace `pull`
   (incluidos privados por SSH). Lee `/environments/<id>/repositories` (`unified_repos`), así que
   incluye los addons extra del proyecto que no están en el stack; ambos se combinan sin duplicados.
+  Si un remoto HTTPS pide credenciales, reintenta por SSH y deja el `origin` en SSH para los
+  siguientes `pull`.
 - **Rebuild**: descarga el backup con `database-pulls` (dump custom o zip con filestore),
   lo guarda en `backups/`, crea la base local, restaura, copia el filestore, neutraliza
   (opcional), sincroniza repos (opcional) y muestra progreso con MB, MB/s y ETA.
@@ -83,6 +85,7 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - Clona en `repo/<org>/<name>` y, si se deja activado, añade la carpeta al `addons_path` de la
   configuración activa.
 - Un clon existente se actualiza con `fetch` + `pull --ff-only`.
+- Si un clon HTTPS falla porque el repositorio es privado, reintenta automáticamente por SSH.
 - Herramienta `clone` del namespace `odoo` para el agente; no requiere adoo.live.
 
 ### Panel

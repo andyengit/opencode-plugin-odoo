@@ -45,6 +45,20 @@ async function git(args: string[], cwd: string): Promise<string | undefined> {
   return result.output.trim().split("\n").slice(-4).join(" ").trim() || `git ${args[0]} failed`
 }
 
+/** Whether a git failure means the HTTPS remote asked for credentials that git cannot prompt for. */
+export function isAuthFailure(message: string): boolean {
+  return /could not read Username|Authentication failed|terminal prompts disabled|Repository not found|Permission denied \(publickey\)/i.test(
+    message,
+  )
+}
+
+/** The SSH form of an HTTPS repository URL, when it differs. */
+export function sshFallback(url: string): string | undefined {
+  if (!/^https?:\/\//i.test(url)) return undefined
+  const ssh = sshUrl(url)
+  return ssh === undefined || ssh === url ? undefined : ssh
+}
+
 export async function cloneRepository(root: string, request: CloneRequest): Promise<CloneResult> {
   const url = normalizeRepoUrl(request.url, request.ssh ?? false)
   if (url === "") return { ok: false, message: "Write the repository URL", relative: "", path: "" }
@@ -75,13 +89,32 @@ export async function cloneRepository(root: string, request: CloneRequest): Prom
   }
 
   await mkdir(dirname(path), { recursive: true })
-  const args = branch === "" ? ["clone", url, path] : ["clone", "--branch", branch, url, path]
-  const clone = await git(args, root)
+  const attempt = (target: string) => {
+    const args = branch === "" ? ["clone", target, path] : ["clone", "--branch", branch, target, path]
+    return git(args, root)
+  }
+  let clone = await attempt(url)
+  let overSsh = false
+  if (clone) {
+    // A private repository cloned over HTTPS cannot prompt for credentials here; retry with SSH.
+    const fallback = sshFallback(url)
+    if (fallback && isAuthFailure(clone)) {
+      await rm(path, { recursive: true, force: true }).catch(() => undefined)
+      await mkdir(dirname(path), { recursive: true })
+      clone = await attempt(fallback)
+      overSsh = clone === undefined
+    }
+  }
   if (clone) {
     await rm(path, { recursive: true, force: true }).catch(() => undefined)
     return failure(clone)
   }
-  return { ok: true, message: `Cloned ${folder.relative}`, relative: folder.relative, path }
+  return {
+    ok: true,
+    message: `Cloned ${folder.relative}${overSsh ? " over SSH" : ""}`,
+    relative: folder.relative,
+    path,
+  }
 }
 
 /** Adds a cloned repository to the active configuration's addons_path when it is not there yet. */
