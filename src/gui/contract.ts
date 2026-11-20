@@ -455,6 +455,10 @@ export const Odoo = Ipc.define({
       input: Schema.Struct({ directory: Schema.String }),
       output: Schema.Struct({ repos: Schema.Array(RepoStatus) }),
     },
+    reposUpdateLog: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.Struct({ text: Schema.String }),
+    },
     shell: {
       input: Schema.Struct({
         directory: Schema.String,

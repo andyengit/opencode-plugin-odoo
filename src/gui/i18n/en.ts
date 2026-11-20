@@ -80,6 +80,7 @@ export default {
   repoUpdateAllCurrent: "All repositories are at the latest commit.",
   repoUpdateAll: "Update all",
   repoUpdateOne: "Update",
+  repoUpdateLog: "Update log",
   errorsOnly: "Only errors",
   installing: "Installing…",
   installCloning: "Cloning Odoo…",

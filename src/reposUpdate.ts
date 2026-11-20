@@ -1,6 +1,6 @@
 /** Checks and moves the cloned repositories of a workspace to the latest commit of their branch. */
 
-import { access, readdir } from "node:fs/promises"
+import { access, appendFile, mkdir, readdir } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { parseAheadBehind } from "./git"
 import { isAuthFailure, sshFallback } from "./clone"
@@ -53,6 +53,20 @@ function gitText(args: string[], cwd: string): Promise<string> {
     (result) => (result.code === 0 ? result.output.trim() : ""),
     () => "",
   )
+}
+
+/** The log of update runs, kept under `.odoo-run` so the dialog can show the record later. */
+export function reposUpdateLogPath(root: string): string {
+  return join(root, ".odoo-run", "repos-update.log")
+}
+
+async function log(root: string, line: string): Promise<void> {
+  await mkdir(join(root, ".odoo-run"), { recursive: true }).catch(() => undefined)
+  await appendFile(reposUpdateLogPath(root), `${new Date().toISOString()} ${line}\n`).catch(() => undefined)
+}
+
+function shortCommit(hash: string): string {
+  return hash === "" ? "-" : hash.slice(0, 7)
 }
 
 /** Every clone the plugin manages: `custom` and `repo/<org>/<name>`. */
@@ -169,10 +183,31 @@ export async function updateRepositories(
   options: { hard?: boolean; paths?: readonly string[] } = {},
 ): Promise<RepoUpdateResult[]> {
   const wanted = options.paths && options.paths.length > 0 ? new Set(options.paths) : undefined
+  const directories = (await repositoryDirectories(root)).filter(
+    (directory) => !wanted || wanted.has(relative(root, directory)),
+  )
+  if (directories.length === 0) return []
+  await log(
+    root,
+    `start ${options.hard ? "hard" : "fast-forward"} repositories=${directories.length}${
+      wanted ? ` paths=${[...wanted].join(",")}` : ""
+    }`,
+  )
   const results: RepoUpdateResult[] = []
-  for (const directory of await repositoryDirectories(root)) {
-    if (wanted && !wanted.has(relative(root, directory))) continue
-    results.push(await updateRepository(root, directory, options))
+  for (const directory of directories) {
+    const before = await gitText(["-C", directory, "rev-parse", "HEAD"], directory)
+    const result = await updateRepository(root, directory, options)
+    const after = await gitText(["-C", directory, "rev-parse", "HEAD"], directory)
+    results.push(result)
+    await log(
+      root,
+      `${result.state} ${result.path} ${result.branch === "" ? "-" : result.branch} ${shortCommit(before)}..${shortCommit(after)}${
+        result.message === "" ? "" : ` | ${result.message}`
+      }`,
+    )
   }
+  const updated = results.filter((result) => result.state === "updated").length
+  const failed = results.filter((result) => result.state === "error").length
+  await log(root, `done updated=${updated} failed=${failed} total=${results.length}`)
   return results
 }

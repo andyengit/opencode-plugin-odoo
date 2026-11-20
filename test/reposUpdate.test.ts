@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { inspectRepositories, repositoryDirectories, updateRepositories } from "../src/reposUpdate"
+import { inspectRepositories, reposUpdateLogPath, repositoryDirectories, updateRepositories } from "../src/reposUpdate"
 
 const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, stdio: "pipe" })
 const commit = (cwd: string, message: string) => {
@@ -99,5 +99,16 @@ describe("updateRepositories", () => {
     expect(await updateRepositories(root, { paths: ["repo/other/repo"] })).toEqual([])
     const results = await updateRepositories(root, { paths: ["repo/acme/demo"] })
     expect(results.map((result) => result.path)).toEqual(["repo/acme/demo"])
+  })
+
+  test("records the run in the workspace log", async () => {
+    const { root, origin } = await fixture()
+    await writeFile(join(origin, "a.txt"), "two\n")
+    commit(origin, "second")
+    await updateRepositories(root)
+    const text = await readFile(reposUpdateLogPath(root), "utf8")
+    expect(text).toContain("start fast-forward repositories=1")
+    expect(text).toContain("updated repo/acme/demo main")
+    expect(text).toContain("done updated=1 failed=0 total=1")
   })
 })

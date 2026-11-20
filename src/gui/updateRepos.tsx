@@ -1,4 +1,4 @@
-import { createSignal, For, onMount, Show } from "solid-js"
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import type { OdooClient } from "./contract"
 
@@ -29,6 +29,19 @@ export function UpdateReposDialog(props: {
   const [scanning, setScanning] = createSignal(false)
   const [updating, setUpdating] = createSignal("")
   const [statuses, setStatuses] = createSignal<Status[]>([])
+  const [logText, setLogText] = createSignal("")
+  let logPre: HTMLPreElement | undefined
+
+  const loadLog = () =>
+    void props.odoo
+      .reposUpdateLog({ directory: props.directory })
+      .then((result) => {
+        setLogText(result.text)
+        queueMicrotask(() => {
+          if (logPre) logPre.scrollTop = logPre.scrollHeight
+        })
+      })
+      .catch(() => undefined)
 
   const scan = async () => {
     setScanning(true)
@@ -39,7 +52,12 @@ export function UpdateReposDialog(props: {
     setStatuses([...result.repos])
   }
 
-  onMount(() => void scan())
+  onMount(() => {
+    void scan()
+    loadLog()
+    const timer = setInterval(loadLog, 1500)
+    onCleanup(() => clearInterval(timer))
+  })
 
   const pending = () => statuses().filter((status) => status.state !== "current")
   const current = () => statuses().filter((status) => status.state === "current").length
@@ -64,6 +82,7 @@ export function UpdateReposDialog(props: {
       })
     }
     props.onDone()
+    loadLog()
     await scan()
   }
 
@@ -163,6 +182,18 @@ export function UpdateReposDialog(props: {
                 </div>
               )}
             </For>
+          </div>
+        </Show>
+        <Show when={logText() !== ""}>
+          <div class="flex flex-col gap-1">
+            <span class="text-[11px] opacity-50 px-1">{ctx.t("repoUpdateLog")}</span>
+            <pre
+              ref={logPre}
+              class="text-[11px] whitespace-pre-wrap max-h-40 overflow-auto p-2"
+              style={{ "font-family": "var(--font-family-mono, monospace)" }}
+            >
+              {logText()}
+            </pre>
           </div>
         </Show>
       </div>

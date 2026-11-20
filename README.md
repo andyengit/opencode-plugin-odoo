@@ -90,6 +90,8 @@ agente y añade un **panel de Git** con commits redactados por IA.
   **no están en el último commit de su rama** (`behind`, `diverged`, errores), con un botón para
   actualizar **solo ese repositorio** o **Update all**. Usa `merge --ff-only`; con **Discard
   local changes** usa `reset --hard`.
+- Cada ejecución queda registrada en `.odoo-run/repos-update.log` (fecha, repo, rama, commit
+  anterior→nuevo y estado), y el diálogo muestra ese registro en vivo.
 - Herramienta `clone` del namespace `odoo` para el agente; no requiere adoo.live.
 
 ### Panel
