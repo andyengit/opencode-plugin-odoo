@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js"
+import { createSignal, For, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import type { OdooClient } from "./contract"
 
@@ -7,12 +7,14 @@ const AMBER = "#f59e0b"
 const RED = "#ef4444"
 const GRAY = "#9ca3af"
 
-type State = "updated" | "current" | "skipped" | "error"
+type State = "current" | "behind" | "diverged" | "skipped" | "error"
 
-interface Result {
+interface Status {
   path: string
   branch: string
   state: State
+  ahead: number
+  behind: number
   message: string
 }
 
@@ -24,39 +26,59 @@ export function UpdateReposDialog(props: {
 }) {
   const ctx = usePlugin()
   const [hard, setHard] = createSignal(false)
-  const [busy, setBusy] = createSignal(false)
-  const [ran, setRan] = createSignal(false)
-  const [results, setResults] = createSignal<Result[]>([])
+  const [scanning, setScanning] = createSignal(false)
+  const [updating, setUpdating] = createSignal("")
+  const [statuses, setStatuses] = createSignal<Status[]>([])
 
-  const run = async () => {
-    setBusy(true)
+  const scan = async () => {
+    setScanning(true)
+    const result = await props.odoo
+      .reposStatus({ directory: props.directory })
+      .catch(() => ({ repos: [] as Status[] }))
+    setScanning(false)
+    setStatuses([...result.repos])
+  }
+
+  onMount(() => void scan())
+
+  const pending = () => statuses().filter((status) => status.state !== "current")
+  const current = () => statuses().filter((status) => status.state === "current").length
+
+  const update = async (paths: string[]) => {
+    if (updating() !== "" || paths.length === 0) return
+    setUpdating(paths.length === 1 ? (paths[0] ?? "all") : "all")
     const outcome = await props.odoo
-      .reposUpdate({ directory: props.directory, hard: hard() })
-      .catch(() => ({ results: [] as Result[], updated: 0, failed: 1 }))
-    setBusy(false)
-    setRan(true)
-    setResults([...outcome.results])
-    ctx.toast.show({
-      title:
-        outcome.failed > 0
-          ? `${outcome.updated} ${ctx.t("repoUpdateUpdated")} · ${outcome.failed} ${ctx.t("repoUpdateFailed")}`
-          : `${outcome.updated} ${ctx.t("repoUpdateUpdated")}`,
-      variant: outcome.failed > 0 ? "error" : "success",
-    })
+      .reposUpdate({ directory: props.directory, hard: hard(), paths })
+      .catch(() => ({ results: [], updated: 0, failed: 1 }))
+    setUpdating("")
+    const failed = outcome.results.find((result) => result.state === "error")
+    if (failed) {
+      ctx.toast.show({ title: failed.message || ctx.t("repoUpdateFailed"), variant: "error" })
+    } else {
+      ctx.toast.show({
+        title:
+          outcome.updated > 0
+            ? `${outcome.updated} ${ctx.t("repoUpdateUpdated")}`
+            : ctx.t("repoUpdateCurrent"),
+        variant: "success",
+      })
+    }
     props.onDone()
+    await scan()
   }
 
-  const label = (state: State) => {
-    if (state === "updated") return ctx.t("repoUpdateUpdated")
-    if (state === "current") return ctx.t("repoUpdateCurrent")
-    if (state === "skipped") return ctx.t("repoUpdateSkipped")
-    return ctx.t("repoUpdateFailed")
+  const label = (status: Status) => {
+    if (status.state === "behind") return `${ctx.t("repoUpdateBehind")} ↓${status.behind}`
+    if (status.state === "diverged") return `↑${status.ahead} ↓${status.behind}`
+    if (status.state === "skipped") return ctx.t("repoUpdateSkipped")
+    if (status.state === "error") return ctx.t("repoUpdateFailed")
+    return ctx.t("repoUpdateCurrent")
   }
-  const color = (state: State) => {
-    if (state === "updated") return GREEN
-    if (state === "current") return GRAY
-    if (state === "skipped") return AMBER
-    return RED
+  const color = (status: Status) => {
+    if (status.state === "behind") return AMBER
+    if (status.state === "diverged" || status.state === "error") return RED
+    if (status.state === "skipped") return GRAY
+    return GREEN
   }
 
   return (
@@ -69,8 +91,13 @@ export function UpdateReposDialog(props: {
           <ctx.ui.Button variant="ghost" onClick={props.close}>
             {ctx.t("close")}
           </ctx.ui.Button>
-          <ctx.ui.Button variant="contrast" busy={busy()} onClick={() => void run()}>
-            {ran() ? ctx.t("reposUpdateAgain") : ctx.t("reposUpdateRun")}
+          <ctx.ui.Button
+            variant="contrast"
+            busy={updating() === "all"}
+            disabled={pending().length === 0 || updating() !== "" || scanning()}
+            onClick={() => void update(pending().map((status) => status.path))}
+          >
+            {`${ctx.t("reposUpdateAll")} (${pending().length})`}
           </ctx.ui.Button>
         </>
       }
@@ -82,38 +109,61 @@ export function UpdateReposDialog(props: {
           checked={hard()}
           onChange={setHard}
         />
-        <Show when={ran()}>
-          <Show
-            when={results().length > 0}
-            fallback={<span class="text-[11px] opacity-40">{ctx.t("reposUpdateEmpty")}</span>}
-          >
-            <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-              <For each={results()}>
-                {(entry) => (
-                  <div class="flex flex-col gap-0.5 rounded px-1 py-1 text-xs hover:bg-v2-background-bg-layer-02">
-                    <div class="flex items-center gap-1">
-                      <span
-                        class="flex-1 truncate"
-                        style={{ "font-family": "var(--font-family-mono, monospace)" }}
-                        title={entry.path}
-                      >
-                        {entry.path}
-                      </span>
-                      <span class="shrink-0 text-[11px] opacity-40">{entry.branch}</span>
-                      <span class="shrink-0 text-[11px]" style={{ color: color(entry.state) }}>
-                        {label(entry.state)}
-                      </span>
-                    </div>
-                    <Show when={entry.message !== ""}>
-                      <span class="text-[11px]" style={{ color: RED }}>
-                        {entry.message}
-                      </span>
-                    </Show>
-                  </div>
-                )}
-              </For>
+        <div class="flex items-center gap-1">
+          <span class="flex-1 text-[11px] opacity-50 px-1">
+            {scanning()
+              ? ctx.t("repoUpdateChecking")
+              : `${pending().length} ${ctx.t("repoUpdateOutdated")} · ${current()} ${ctx.t("repoUpdateUpToDate")}`}
+          </span>
+          <ctx.ui.Tooltip value={ctx.t("refresh")}>
+            <ctx.ui.IconButton
+              icon="outline-rotate-clockwise"
+              label={ctx.t("refresh")}
+              size="small"
+              variant="ghost"
+              busy={scanning()}
+              onClick={() => void scan()}
+            />
+          </ctx.ui.Tooltip>
+        </div>
+        <Show
+          when={pending().length > 0}
+          fallback={
+            <div class="flex flex-col items-center gap-2 py-5 text-center">
+              <ctx.ui.Icon name="circle-check" size="large" />
+              <span class="text-xs opacity-60">{ctx.t("repoUpdateAllCurrent")}</span>
             </div>
-          </Show>
+          }
+        >
+          <div class="flex flex-col gap-0.5 max-h-72 overflow-y-auto">
+            <For each={pending()}>
+              {(status) => (
+                <div class="flex items-center gap-1 rounded px-1 py-1 text-xs hover:bg-v2-background-bg-layer-02">
+                  <span
+                    class="flex-1 truncate"
+                    style={{ "font-family": "var(--font-family-mono, monospace)" }}
+                    title={`${status.path} · ${status.message}`}
+                  >
+                    {status.path}
+                  </span>
+                  <span class="shrink-0 text-[11px] opacity-40">{status.branch}</span>
+                  <span class="shrink-0 text-[11px]" style={{ color: color(status) }}>
+                    {label(status)}
+                  </span>
+                  <ctx.ui.Button
+                    size="small"
+                    variant="ghost"
+                    icon="arrow-down-to-line"
+                    busy={updating() === status.path}
+                    disabled={updating() !== ""}
+                    onClick={() => void update([status.path])}
+                  >
+                    {ctx.t("repoUpdateOne")}
+                  </ctx.ui.Button>
+                </div>
+              )}
+            </For>
+          </div>
         </Show>
       </div>
     </ctx.ui.Dialog>

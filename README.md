@@ -86,9 +86,10 @@ agente y añade un **panel de Git** con commits redactados por IA.
   configuración activa.
 - Un clon existente se actualiza con `fetch` + `pull --ff-only`.
 - Si un clon HTTPS falla porque el repositorio es privado, reintenta automáticamente por SSH.
-- **Update repositories** (Configuration): hace `fetch` de todos los clones de `repo/` y `custom`
-  y los deja en el **último commit de su rama** con `merge --ff-only`. Con **Discard local
-  changes** usa `reset --hard`; el diálogo muestra el resultado por repositorio.
+- **Update repositories** (Configuration): al abrirlo hace `fetch` y muestra solo los repos que
+  **no están en el último commit de su rama** (`behind`, `diverged`, errores), con un botón para
+  actualizar **solo ese repositorio** o **Update all**. Usa `merge --ff-only`; con **Discard
+  local changes** usa `reset --hard`.
 - Herramienta `clone` del namespace `odoo` para el agente; no requiere adoo.live.
 
 ### Panel

@@ -27,7 +27,7 @@ import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "..
 import { installOdoo, pipInstall, type InstallStep } from "../install"
 import { installSkillPack, skillPackStatus } from "../skillpack"
 import { addFolderToAddons, cloneRepository, isAuthFailure, sshFallback } from "../clone"
-import { updateRepositories } from "../reposUpdate"
+import { inspectRepositories, updateRepositories } from "../reposUpdate"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { mergeRepos, parseEnvironmentRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -1710,15 +1710,21 @@ const setup: Plugin.MainSetup = (ctx) => {
       }
     },
 
-    reposUpdate: async ({ directory, hard }) => {
+    reposUpdate: async ({ directory, hard, paths }) => {
       const workspace = await resolveWorkspace(directory)
       if (!workspace) return { results: [], updated: 0, failed: 0 }
-      const results = await updateRepositories(workspace.root, { hard })
+      const results = await updateRepositories(workspace.root, { hard, paths })
       return {
         results,
         updated: results.filter((result) => result.state === "updated").length,
         failed: results.filter((result) => result.state === "error").length,
       }
+    },
+
+    reposStatus: async ({ directory }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { repos: [] }
+      return { repos: await inspectRepositories(workspace.root) }
     },
 
     skillPack: async ({ directory }) => {

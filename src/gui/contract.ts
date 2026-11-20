@@ -241,6 +241,15 @@ export const RepoUpdate = Schema.Struct({
   message: Schema.String,
 })
 
+export const RepoStatus = Schema.Struct({
+  path: Schema.String,
+  branch: Schema.String,
+  state: Schema.Literals(["current", "behind", "diverged", "skipped", "error"]),
+  ahead: Schema.Number,
+  behind: Schema.Number,
+  message: Schema.String,
+})
+
 export const RebuildStatus = Schema.Struct({
   running: Schema.Boolean,
   environment: Schema.String,
@@ -435,8 +444,16 @@ export const Odoo = Ipc.define({
       output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String, relative: Schema.String }),
     },
     reposUpdate: {
-      input: Schema.Struct({ directory: Schema.String, hard: Schema.Boolean }),
+      input: Schema.Struct({
+        directory: Schema.String,
+        hard: Schema.Boolean,
+        paths: Schema.Array(Schema.String),
+      }),
       output: Schema.Struct({ results: Schema.Array(RepoUpdate), updated: Schema.Number, failed: Schema.Number }),
+    },
+    reposStatus: {
+      input: Schema.Struct({ directory: Schema.String }),
+      output: Schema.Struct({ repos: Schema.Array(RepoStatus) }),
     },
     shell: {
       input: Schema.Struct({
