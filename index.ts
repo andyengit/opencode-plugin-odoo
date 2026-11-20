@@ -15,6 +15,7 @@ import { parseGitStatus } from "./src/git"
 import { runProcess, type RunResult } from "./src/execute"
 import { applyRecommendation, recommend, workspaceSkill } from "./src/recommend"
 import { loadSkillPack, skillInfo } from "./src/skills"
+import { addFolderToAddons, cloneRepository } from "./src/clone"
 import {
   rpcCall,
   rpcConnect,
@@ -457,6 +458,33 @@ export default Plugin.define({
           const recommendation = await recommend(workspace)
           const environment = applyRecommendation(recommendation, { force: force ?? true })
           return { content: json({ ...recommendation, environment }) }
+        },
+      })
+
+      tools.add({
+        name: "clone",
+        description:
+          "Clone a git repository from any host into repo/<org>/<name> of this workspace, optionally adding it to the active configuration's addons_path. Use it for addons that do not come from an adoo.live stack.",
+        input: Schema.Struct({
+          url: Schema.String,
+          branch: Schema.optional(Schema.String),
+          ssh: Schema.optional(Schema.Boolean),
+          addons: Schema.optional(Schema.Boolean),
+        }),
+        execute: async ({ url, branch, ssh, addons }) => {
+          const workspace = await resolveProject(directory)
+          if (!workspace) return { content: "No Odoo workspace found for this project." }
+          const result = await cloneRepository(workspace.root, {
+            url,
+            branch: branch ?? "",
+            ssh: ssh ?? false,
+          })
+          if (!result.ok) return { content: result.message }
+          if (addons ?? true) {
+            const environment = workspace.environments.find((item) => item.active) ?? workspace.environments[0]
+            if (environment) await addFolderToAddons(environment.confPath, result.path).catch(() => undefined)
+          }
+          return { content: `${result.message} → ${result.relative}` }
         },
       })
 

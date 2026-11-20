@@ -15,6 +15,7 @@ import type {
   WorkspaceSummary,
 } from "./contract"
 import { CONF_KEYS } from "./fields"
+import { CloneRepoDialog } from "./clone"
 import { LogLines, LogView } from "./log"
 
 const GREEN = "#22c55e"
@@ -695,6 +696,28 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                     />
                   )}
                 </Show>
+
+                <ctx.ui.Button
+                  size="small"
+                  variant="ghost"
+                  class="justify-start"
+                  icon="download"
+                  onClick={() =>
+                    ctx.dialogs.open((dialog) => (
+                      <CloneRepoDialog
+                        odoo={props.odoo}
+                        directory={props.directory}
+                        close={dialog.close}
+                        onDone={() => {
+                          setRevision(revision() + 1)
+                          void load()
+                        }}
+                      />
+                    ))
+                  }
+                >
+                  {ctx.t("cloneRepo")}
+                </ctx.ui.Button>
 
                 <Show when={workspace().versions.length > 0 && workspace().environmentVersion}>
                   <PythonPackages

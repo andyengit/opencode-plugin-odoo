@@ -417,6 +417,16 @@ export const Odoo = Ipc.define({
       input: Schema.Struct({ directory: Schema.String }),
       output: Schema.String,
     },
+    cloneRepo: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        url: Schema.String,
+        branch: Schema.String,
+        ssh: Schema.Boolean,
+        addons: Schema.Boolean,
+      }),
+      output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String, relative: Schema.String }),
+    },
     shell: {
       input: Schema.Struct({
         directory: Schema.String,

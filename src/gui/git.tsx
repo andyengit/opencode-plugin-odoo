@@ -2,6 +2,7 @@ import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js"
 import { createKeyed, usePlugin } from "@opencode/plugin/gui"
 import { draftCommitMessage } from "../git"
 import type { GitFile, GitState, OdooClient } from "./contract"
+import { CloneRepoDialog } from "./clone"
 
 const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
@@ -477,6 +478,20 @@ export function GitPanel(props: {
     ))
   }
 
+  const openClone = () => {
+    ctx.dialogs.open((dialog) => (
+      <CloneRepoDialog
+        odoo={props.odoo}
+        directory={props.directory}
+        close={dialog.close}
+        onDone={() => {
+          void loadRepos()
+          loadState()
+        }}
+      />
+    ))
+  }
+
   const openRepos = () => {
     ctx.dialogs.open((dialog) => {
       const [query, setQuery] = createSignal("")
@@ -493,13 +508,27 @@ export function GitPanel(props: {
           }
         >
           <div class="flex flex-col gap-2">
-            <ctx.ui.TextInput
-              value={query()}
-              onInput={setQuery}
-              label={ctx.t("gitSearchRepos")}
-              placeholder={ctx.t("gitSearchRepos")}
-              autofocus
-            />
+            <div class="flex items-end gap-1">
+              <ctx.ui.TextInput
+                value={query()}
+                onInput={setQuery}
+                label={ctx.t("gitSearchRepos")}
+                placeholder={ctx.t("gitSearchRepos")}
+                autofocus
+                class="flex-1"
+              />
+              <ctx.ui.Button
+                size="small"
+                variant="ghost"
+                icon="download"
+                onClick={() => {
+                  dialog.close()
+                  openClone()
+                }}
+              >
+                {ctx.t("cloneRepo")}
+              </ctx.ui.Button>
+            </div>
             <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
               <Show
                 when={visible().length > 0}

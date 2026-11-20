@@ -73,6 +73,16 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - Herramienta `git` para el agente: `repos`, `status`, `diff`, `stage`, `unstage`, `commit`,
   `checkout`, `create-branch`, `stash`.
 
+### Clonar repositorios
+
+- Botón **Clone repository** en *Configuration* y en el diálogo de repositorios del panel Git.
+- Acepta URL completas (HTTPS/SSH) o el atajo `org/repo` (GitHub por defecto), rama opcional y
+  clonación por SSH.
+- Clona en `repo/<org>/<name>` y, si se deja activado, añade la carpeta al `addons_path` de la
+  configuración activa.
+- Un clon existente se actualiza con `fetch` + `pull --ff-only`.
+- Herramienta `clone` del namespace `odoo` para el agente; no requiere adoo.live.
+
 ### Panel
 
 El panel lateral se organiza en secciones (barra superior del panel):
@@ -122,7 +132,7 @@ El panel lateral se organiza en secciones (barra superior del panel):
 
 ### Herramientas del agente (namespace `odoo`)
 
-`detect`, `init`, `install`, `conf_get`, `conf_set`, `addons_path_add`, `get`, `postgres`,
+`detect`, `init`, `install`, `clone`, `conf_get`, `conf_set`, `addons_path_add`, `get`, `postgres`,
 `start`, `stop`, `restart`, `context`, `recommend`, `modules`, `module`, `search`, `update`,
 `shell`, `exec`, `git` y las de XML-RPC.
 

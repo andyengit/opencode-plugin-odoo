@@ -26,6 +26,7 @@ import { resolveWorkspace, type OdooEnvironment, type OdooWorkspace } from "../w
 import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "../scaffold"
 import { installOdoo, pipInstall, type InstallStep } from "../install"
 import { installSkillPack, skillPackStatus } from "../skillpack"
+import { addFolderToAddons, cloneRepository } from "../clone"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { parseEnvironmentRepos, parseStackRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -1696,6 +1697,19 @@ const setup: Plugin.MainSetup = (ctx) => {
       const workspace = await resolveWorkspace(directory)
       if (!workspace) return "No Odoo workspace found for this directory"
       return installSkillPack(workspace.root)
+    },
+
+    cloneRepo: async ({ directory, url, branch, ssh, addons }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { ok: false, message: "No Odoo workspace found for this directory", relative: "" }
+      const result = await cloneRepository(workspace.root, { url, branch, ssh })
+      if (!result.ok || !addons) return { ok: result.ok, message: result.message, relative: result.relative }
+      const environment =
+        workspace.environments.find((item) => item.label === selected.value[workspace.root]) ??
+        workspace.environments.find((item) => item.active) ??
+        workspace.environments[0]
+      if (environment) await addFolderToAddons(environment.confPath, result.path).catch(() => undefined)
+      return { ok: true, message: result.message, relative: result.relative }
     },
 
     shell: async ({ directory, label, database, code }) => {
