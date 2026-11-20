@@ -228,23 +228,28 @@ export default Plugin.define({
     // The recommendation depends on the workspace open in each session, so it is recomputed when a
     // session appears instead of being frozen at startup.
     const configure = async (start: string) => {
-      const workspace = await resolveProject(start)
-      if (!workspace) return
-      const recommendation = await recommend(workspace)
-      applyRecommendation(recommendation)
-      // A workspace with its own `.agents/skills/odoo-skills` clone wins over the bundled copy.
-      const pack = await loadSkillPack(customSkills, workspace.root)
-      const generated = skillInfo(workspaceSkill(workspace, recommendation))
-      await ctx.skill.transform((editor) => {
-        if (!packRegistered) {
-          for (const skill of pack) editor.add(skillInfo(skill))
-          packRegistered = true
-        }
-        editor.add(generated)
-      })
+      try {
+        const workspace = await resolveProject(start)
+        if (!workspace) return
+        const recommendation = await recommend(workspace)
+        applyRecommendation(recommendation)
+        // A workspace with its own `.agents/skills/odoo-skills` clone wins over the bundled copy.
+        const pack = await loadSkillPack(customSkills, workspace.root)
+        const generated = skillInfo(workspaceSkill(workspace, recommendation))
+        await ctx.skill.transform((editor) => {
+          if (!packRegistered) {
+            for (const skill of pack) editor.add(skillInfo(skill))
+            packRegistered = true
+          }
+          editor.add(generated)
+        })
+      } catch (error) {
+        // A failure here must never take the tools down with it.
+        console.warn(`[odoo] skills/recommendation setup failed: ${String(error)}`)
+      }
     }
 
-    await configure(directory)
+    await configure(directory).catch(() => undefined)
     void (async () => {
       for await (const event of ctx.event.subscribe({ types: ["session.created"] })) {
         await configure(event.data.location.directory).catch(() => undefined)

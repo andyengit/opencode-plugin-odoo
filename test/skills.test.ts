@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { loadSkillPack, packRoots, parseFrontmatter, parseSkill, skillInfo, virtualSkill } from "../src/skills"
+import { loadSkillPack, packRoots, parseFrontmatter, parseSkill, pluginRoot, skillInfo, virtualSkill } from "../src/skills"
 
 const sample = `---
 name: odoo-example
@@ -72,5 +72,12 @@ describe("skillInfo", () => {
     const info = skillInfo(virtualSkill({ id: "odoo-workspace", name: "odoo-workspace", content: "# Workspace" }))
     expect(info.path).toBe("skill://odoo-workspace/SKILL.md")
     expect(info.id).toBe("odoo-workspace")
+  })
+})
+
+describe("pluginRoot", () => {
+  test("resolves the plugin folder where import.meta works, or nothing where it cannot", () => {
+    const root = pluginRoot()
+    expect(root === "" || root.endsWith("opencode-plugin-odoo")).toBe(true)
   })
 })

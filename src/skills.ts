@@ -4,7 +4,28 @@ import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Skill } from "@opencode/plugin"
 
-const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+/**
+ * The plugin's own folder, without relying on `import.meta` alone: some hosts transpile plugins to
+ * CommonJS where `import.meta` is emulated with globals that are not defined, which used to crash the
+ * whole plugin before it could register anything.
+ */
+export function pluginRoot(): string {
+  try {
+    const url = import.meta.url
+    if (typeof url === "string" && url.startsWith("file:")) {
+      return resolve(dirname(fileURLToPath(url)), "..")
+    }
+  } catch {
+    // fall through to the CommonJS shim, then to nothing
+  }
+  const shim = globalThis as { __dirname?: string }
+  if (typeof shim.__dirname === "string" && shim.__dirname !== "") {
+    return resolve(shim.__dirname, "..")
+  }
+  return ""
+}
+
+const PLUGIN_ROOT = pluginRoot()
 
 export interface SkillFile {
   id: string
