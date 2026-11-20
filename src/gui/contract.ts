@@ -234,6 +234,13 @@ export const SkillPackStatus = Schema.Struct({
   skills: Schema.Number,
 })
 
+export const RepoUpdate = Schema.Struct({
+  path: Schema.String,
+  branch: Schema.String,
+  state: Schema.Literals(["updated", "current", "skipped", "error"]),
+  message: Schema.String,
+})
+
 export const RebuildStatus = Schema.Struct({
   running: Schema.Boolean,
   environment: Schema.String,
@@ -426,6 +433,10 @@ export const Odoo = Ipc.define({
         addons: Schema.Boolean,
       }),
       output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String, relative: Schema.String }),
+    },
+    reposUpdate: {
+      input: Schema.Struct({ directory: Schema.String, hard: Schema.Boolean }),
+      output: Schema.Struct({ results: Schema.Array(RepoUpdate), updated: Schema.Number, failed: Schema.Number }),
     },
     shell: {
       input: Schema.Struct({

@@ -16,6 +16,7 @@ import type {
 } from "./contract"
 import { CONF_KEYS } from "./fields"
 import { CloneRepoDialog } from "./clone"
+import { UpdateReposDialog } from "./updateRepos"
 import { LogLines, LogView } from "./log"
 
 const GREEN = "#22c55e"
@@ -717,6 +718,28 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                   }
                 >
                   {ctx.t("cloneRepo")}
+                </ctx.ui.Button>
+
+                <ctx.ui.Button
+                  size="small"
+                  variant="ghost"
+                  class="justify-start"
+                  icon="arrow-down-to-line"
+                  onClick={() =>
+                    ctx.dialogs.open((dialog) => (
+                      <UpdateReposDialog
+                        odoo={props.odoo}
+                        directory={props.directory}
+                        close={dialog.close}
+                        onDone={() => {
+                          setRevision(revision() + 1)
+                          void load()
+                        }}
+                      />
+                    ))
+                  }
+                >
+                  {ctx.t("reposUpdate")}
                 </ctx.ui.Button>
 
                 <Show when={workspace().versions.length > 0 && workspace().environmentVersion}>

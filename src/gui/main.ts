@@ -27,6 +27,7 @@ import { createWorkspace, createConf, confLabel, reconfigureWorkspace } from "..
 import { installOdoo, pipInstall, type InstallStep } from "../install"
 import { installSkillPack, skillPackStatus } from "../skillpack"
 import { addFolderToAddons, cloneRepository, isAuthFailure, sshFallback } from "../clone"
+import { updateRepositories } from "../reposUpdate"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { mergeRepos, parseEnvironmentRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -1706,6 +1707,17 @@ const setup: Plugin.MainSetup = (ctx) => {
         module: job?.module ?? "",
         database: job?.database ?? "",
         message: job?.message ?? "",
+      }
+    },
+
+    reposUpdate: async ({ directory, hard }) => {
+      const workspace = await resolveWorkspace(directory)
+      if (!workspace) return { results: [], updated: 0, failed: 0 }
+      const results = await updateRepositories(workspace.root, { hard })
+      return {
+        results,
+        updated: results.filter((result) => result.state === "updated").length,
+        failed: results.filter((result) => result.state === "error").length,
       }
     },
 
