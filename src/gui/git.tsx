@@ -225,7 +225,7 @@ export function GitPanel(props: {
   const openPreReport = (output: string) => {
     ctx.dialogs.open((dialog) => (
       <ctx.ui.Dialog
-        title={ctx.t("preCommitReport")}
+        title={ctx.t("preCommitLog")}
         description={repoLabel(repo())}
         size="x-large"
         footer={
@@ -299,7 +299,7 @@ export function GitPanel(props: {
       title: ok ? ctx.t("preCommitPassed") : ctx.t("preCommitFailed"),
       variant: ok ? "success" : "error",
     })
-    if (!ok) openPreReport(result.output)
+    if (result.output !== "") openPreReport(result.output)
   }
 
   const installPreCommit = async () => {
@@ -1303,15 +1303,14 @@ export function GitPanel(props: {
                         <span class="h-2 w-2 shrink-0 rounded-full" style={{ "background-color": preColor() }} />
                         <span class="flex-1 truncate opacity-70">{`${ctx.t("preCommit")} · ${preLabel()}`}</span>
                         <Show when={preOutput() !== ""}>
-                          <ctx.ui.Tooltip value={ctx.t("preCommitReport")}>
-                            <ctx.ui.IconButton
-                              icon="console"
-                              label={ctx.t("preCommitReport")}
-                              size="small"
-                              variant="ghost"
-                              onClick={() => openPreReport(preOutput())}
-                            />
-                          </ctx.ui.Tooltip>
+                          <ctx.ui.Button
+                            size="small"
+                            variant="ghost"
+                            icon="console"
+                            onClick={() => openPreReport(preOutput())}
+                          >
+                            {ctx.t("preCommitLogButton")}
+                          </ctx.ui.Button>
                         </Show>
                         <Show when={preStatus()?.configured}>
                           <ctx.ui.Select

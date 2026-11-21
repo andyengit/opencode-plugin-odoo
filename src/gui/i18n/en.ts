@@ -313,6 +313,8 @@ export default {
   preCommitError: "runner error",
   preCommitOutdated: "changes since last run",
   preCommitReport: "Report",
+  preCommitLog: "Pre-commit log",
+  preCommitLogButton: "Log",
   preCommitFix: "Fix with agent",
   preCommitNoOutput: "(no output)",
   preCommitNoSession: "Open a session first to create the agent draft",
