@@ -529,8 +529,15 @@ export function GitPanel(props: {
   const openRepos = () => {
     ctx.dialogs.open((dialog) => {
       const [query, setQuery] = createSignal("")
-      const visible = () =>
-        repos().filter((item) => repoLabel(item.path).toLowerCase().includes(query().toLowerCase()))
+      const visible = () => {
+        const search = query().toLowerCase()
+        return repos()
+          .filter((item) => repoLabel(item.path).toLowerCase().includes(search))
+          .sort((a, b) => {
+            const changed = Number(b.changed > 0) - Number(a.changed > 0)
+            return changed !== 0 ? changed : repoLabel(a.path).localeCompare(repoLabel(b.path))
+          })
+      }
       return (
         <ctx.ui.Dialog
           title={ctx.t("gitReposTitle")}
