@@ -332,5 +332,5 @@ export default {
     "Installs a dispatcher in ~/.local/bin that runs the nearest workspace's bin/odoo, so other setups keep working inside their own folders.",
   cliInstall: "Install odoo in PATH",
   gitDraftPrompt:
-    "Write a clear commit message for the staged changes below. Follow the commit rules and project context when provided; otherwise use Conventional Commits in Spanish. The stat lists every staged file and the patch includes them all: cover the important changes of each file. Reply with the message only: a subject line of at most 72 characters, then an optional body. No code fences and no explanation.",
+    "Write a short, precise commit message for the staged changes below. Follow the commit rules and project context when provided; otherwise use Conventional Commits in Spanish. Summarize what is being committed and why: one subject line of at most 72 characters and, only if needed, a body of one to three short lines. Do not list files or enumerate every change. Reply with the message only, no code fences and no explanation.",
 } satisfies Record<string, string>
