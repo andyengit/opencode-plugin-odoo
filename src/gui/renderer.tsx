@@ -45,7 +45,7 @@ const setup: Plugin.Setup = (ctx) => {
     ctx.sessions
       .list()
       .filter((session) => session.location?.directory === directory)
-      .forEach((session) => ctx.layout.open("odoo:main", session))
+      .forEach((session) => ctx.layout.open("odoo:main", session, { background: true }))
   }
 
   const openDialogFor = (directory: string) => {
@@ -99,7 +99,7 @@ const setup: Plugin.Setup = (ctx) => {
           opened.add(seen)
           lastDir.set({ dir: session.directory })
           share(session.directory)
-          ctx.layout.open("odoo:main", session)
+          ctx.layout.open("odoo:main", session, { background: true })
         },
         () => undefined,
       )
