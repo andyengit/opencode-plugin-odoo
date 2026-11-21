@@ -2395,7 +2395,19 @@ const setup: Plugin.MainSetup = (ctx) => {
     gitSync: async ({ directory, repository, action }) => {
       const path = await gitRepository(directory, repository)
       if (!path) return "Not a git repository"
-      if (action === "fetch") return (await git(["fetch", "--prune"], path)) ?? "Fetched"
+      // HTTPS remotes cannot ask for a username here; switch them to SSH once and retry.
+      const run = async (args: string[], remote = "origin"): Promise<string | undefined> => {
+        const failure = await git(args, path)
+        if (!failure || !isAuthFailure(failure)) return failure
+        const url = await gitText(["remote", "get-url", remote], path)
+        const ssh = sshFallback(url)
+        if (!ssh) return failure
+        const changed = await git(["remote", "set-url", remote, ssh], path)
+        if (changed) return changed
+        return git(args, path)
+      }
+      const remoteOf = (ref: string) => (ref.includes("/") ? (ref.split("/")[0] ?? "origin") : "origin")
+      if (action === "fetch") return (await run(["fetch", "--prune"])) ?? "Fetched"
       const branch = await gitText(["rev-parse", "--abbrev-ref", "HEAD"], path)
       if (branch === "" || branch === "HEAD") return "Checkout a branch first"
       const upstream = await gitText(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], path)
@@ -2407,10 +2419,10 @@ const setup: Plugin.MainSetup = (ctx) => {
         if (counts.behind === 0) return "Already up to date"
         if (counts.ahead > 0)
           return `Diverged: ${counts.ahead} ahead and ${counts.behind} behind. Pull needs a manual merge or rebase`
-        return (await git(["pull", "--ff-only"], path)) ?? "Pulled"
+        return (await run(["pull", "--ff-only"], remoteOf(upstream))) ?? "Pulled"
       }
       if (upstream !== "") {
-        const failure = await git(["push"], path)
+        const failure = await run(["push"], remoteOf(upstream))
         return failure ? pushError(failure) : "Pushed"
       }
       // Without an upstream, prefer origin; otherwise a single remote is unambiguous.
@@ -2420,7 +2432,7 @@ const setup: Plugin.MainSetup = (ctx) => {
       if (remote === "") {
         return "This branch has no upstream and the repository has several remotes; set one with git push -u <remote> <branch>"
       }
-      const failure = await git(["push", "-u", remote, branch], path)
+      const failure = await run(["push", "-u", remote, branch], remote)
       return failure ? pushError(failure) : `Pushed ${branch} to ${remote}`
     },
 
