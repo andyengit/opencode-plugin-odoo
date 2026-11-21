@@ -250,6 +250,21 @@ export const RepoStatus = Schema.Struct({
   message: Schema.String,
 })
 
+export const PreCommitStatus = Schema.Struct({
+  configured: Schema.Boolean,
+  oca: Schema.Boolean,
+  runner: Schema.String,
+  state: Schema.Literals(["not-run", "passed", "failed", "missing", "error"]),
+  at: Schema.Number,
+  outdated: Schema.Boolean,
+})
+
+export const PreCommitResult = Schema.Struct({
+  state: Schema.Literals(["passed", "failed", "missing", "error"]),
+  output: Schema.String,
+  durationMs: Schema.Number,
+})
+
 export const RebuildStatus = Schema.Struct({
   running: Schema.Boolean,
   environment: Schema.String,
@@ -458,6 +473,18 @@ export const Odoo = Ipc.define({
     reposUpdateLog: {
       input: Schema.Struct({ directory: Schema.String }),
       output: Schema.Struct({ text: Schema.String }),
+    },
+    preCommitStatus: {
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
+      output: PreCommitStatus,
+    },
+    preCommitRun: {
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
+      output: PreCommitResult,
+    },
+    preCommitSetup: {
+      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
+      output: Schema.String,
     },
     shell: {
       input: Schema.Struct({

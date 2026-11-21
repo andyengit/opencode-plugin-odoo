@@ -83,6 +83,8 @@ export function GitPanel(props: {
   const [openChanges, setOpenChanges] = createSignal(true)
   const [expandedFolders, setExpandedFolders] = createSignal<Record<string, boolean>>({})
   const [hasContext, setHasContext] = createSignal(false)
+  const [preStatus, setPreStatus] = createSignal<Awaited<ReturnType<OdooClient["preCommitStatus"]>> | undefined>()
+  const [preOutput, setPreOutput] = createSignal("")
   const [focused, setFocused] = createSignal(false)
   let messageArea: HTMLTextAreaElement | undefined
   let lastDirectory = props.directory
@@ -103,6 +105,12 @@ export function GitPanel(props: {
       .then(setState)
       .catch(() => setState(undefined))
 
+  const loadPreCommit = () =>
+    void props.odoo
+      .preCommitStatus({ directory: props.directory, repository: repo() })
+      .then(setPreStatus)
+      .catch(() => setPreStatus(undefined))
+
   const loadLog = () =>
     void props.odoo
       .gitLog({ directory: props.directory, repository: repo(), limit: 30 })
@@ -113,6 +121,8 @@ export function GitPanel(props: {
     setRepo(path)
     setMessage(next[draftKey(path)] ?? "")
     setState(undefined)
+    setPreStatus(undefined)
+    setPreOutput("")
     setExpandedFolders({})
     props.remember(props.directory, path)
   }
@@ -130,6 +140,7 @@ export function GitPanel(props: {
     setReposLoaded(true)
     if (result.repos.some((item) => item.path === repo())) {
       loadState()
+      loadPreCommit()
       return
     }
     const next =
@@ -166,7 +177,10 @@ export function GitPanel(props: {
   )
   createKeyed(
     () => repo(),
-    () => loadState(),
+    () => {
+      loadState()
+      loadPreCommit()
+    },
   )
   createKeyed(
     () => `${repo()}\n${section()}`,
@@ -199,7 +213,102 @@ export function GitPanel(props: {
     setBusy(undefined)
     ctx.toast.show({ title: outcome })
     void loadRepos()
+    loadPreCommit()
     if (section() === "history") loadLog()
+  }
+
+  const openPreReport = (output: string) => {
+    ctx.dialogs.open((dialog) => (
+      <ctx.ui.Dialog
+        title={ctx.t("preCommitReport")}
+        description={repoLabel(repo())}
+        size="x-large"
+        footer={
+          <>
+            <ctx.ui.Button variant="ghost" onClick={dialog.close}>
+              {ctx.t("close")}
+            </ctx.ui.Button>
+            <ctx.ui.Button
+              variant="ghost"
+              icon="copy"
+              onClick={() =>
+                void ctx.system
+                  .copy(output)
+                  .then(() => ctx.toast.show({ title: ctx.t("copied") }))
+                  .catch(() => undefined)
+              }
+            >
+              {ctx.t("copyLog")}
+            </ctx.ui.Button>
+            <ctx.ui.Button
+              variant="contrast"
+              icon="brain"
+              onClick={() => {
+                const session = ctx.sessions.current()
+                if (!session) {
+                  ctx.toast.show({ title: ctx.t("preCommitNoSession"), variant: "error" })
+                  return
+                }
+                ctx.layout.draft({
+                  server: session.server.id,
+                  directory: state()?.root ?? props.directory,
+                  prompt: `${ctx.t("preCommitFixPrompt")}\n\n${output}`,
+                })
+                dialog.close()
+                ctx.toast.show({ title: ctx.t("preCommitDraft") })
+              }}
+            >
+              {ctx.t("preCommitFix")}
+            </ctx.ui.Button>
+          </>
+        }
+      >
+        <pre
+          class="text-[11px] whitespace-pre-wrap overflow-auto max-h-[55vh] p-2"
+          style={{
+            "font-family": "var(--font-family-mono, monospace)",
+            "user-select": "text",
+            "-webkit-user-select": "text",
+            cursor: "text",
+          }}
+        >
+          {output === "" ? ctx.t("preCommitNoOutput") : output}
+        </pre>
+      </ctx.ui.Dialog>
+    ))
+  }
+
+  const runPreCommit = async () => {
+    if (busy()) return
+    setBusy("precommit")
+    const result = await props.odoo
+      .preCommitRun({ directory: props.directory, repository: repo() })
+      .catch((error: unknown) => ({ state: "error" as const, output: String(error), durationMs: 0 }))
+    setBusy(undefined)
+    setPreOutput(result.output)
+    loadPreCommit()
+    loadState()
+    void loadRepos()
+    const ok = result.state === "passed"
+    ctx.toast.show({
+      title: ok ? ctx.t("preCommitPassed") : ctx.t("preCommitFailed"),
+      variant: ok ? "success" : "error",
+    })
+    if (!ok) openPreReport(result.output)
+  }
+
+  const installPreCommit = async () => {
+    const ok = await ctx.dialogs.confirm({
+      title: ctx.t("preCommitInstall"),
+      description: ctx.t("preCommitInstallHint"),
+      confirm: ctx.t("preCommitInstall"),
+    })
+    if (!ok) return
+    const message = await props.odoo
+      .preCommitSetup({ directory: props.directory, repository: repo() })
+      .catch((error: unknown) => String(error))
+    ctx.toast.show({ title: message })
+    loadPreCommit()
   }
 
   const toggle = (file: GitFile, stagedSide: boolean) =>
@@ -900,6 +1009,31 @@ export function GitPanel(props: {
     )
   }
 
+  const preLabel = () => {
+    const status = preStatus()
+    if (!status) return ctx.t("loading")
+    const base = !status.configured
+      ? ctx.t("preCommitMissing")
+      : status.state === "passed"
+        ? ctx.t("preCommitPassed")
+        : status.state === "failed"
+          ? ctx.t("preCommitFailed")
+          : status.state === "error"
+            ? ctx.t("preCommitError")
+            : ctx.t("preCommitNotRun")
+    return status.outdated ? `${base} · ${ctx.t("preCommitOutdated")}` : base
+  }
+
+  const preColor = () => {
+    const status = preStatus()
+    if (!status) return GRAY
+    if (status.outdated) return AMBER
+    if (status.state === "passed") return GREEN
+    if (status.state === "failed") return RED
+    if (status.state === "missing" || status.state === "error") return AMBER
+    return GRAY
+  }
+
   return (
     <div class="flex flex-col gap-2 p-3 min-h-0">
       <div class="flex items-center gap-1">
@@ -1134,6 +1268,25 @@ export function GitPanel(props: {
                     </div>
 
                     <div class="flex flex-col gap-2 pt-1">
+                      <div class="flex items-center gap-1 px-1 text-[11px]">
+                        <span class="h-2 w-2 shrink-0 rounded-full" style={{ "background-color": preColor() }} />
+                        <span class="flex-1 truncate opacity-70">{`${ctx.t("preCommit")} · ${preLabel()}`}</span>
+                        <Show when={preOutput() !== ""}>
+                          <ctx.ui.Button size="small" variant="ghost" onClick={() => openPreReport(preOutput())}>
+                            {ctx.t("preCommitReport")}
+                          </ctx.ui.Button>
+                        </Show>
+                        <ctx.ui.Button
+                          size="small"
+                          variant="ghost"
+                          icon="checklist"
+                          busy={busy() === "precommit"}
+                          disabled={busy() !== undefined && busy() !== "precommit"}
+                          onClick={() => void (preStatus()?.configured ? runPreCommit() : installPreCommit())}
+                        >
+                          {preStatus()?.configured ? ctx.t("preCommitRun") : ctx.t("preCommitInstall")}
+                        </ctx.ui.Button>
+                      </div>
                       <textarea
                         ref={(element) => {
                           messageArea = element

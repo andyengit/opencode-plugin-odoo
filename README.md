@@ -68,6 +68,10 @@ agente y añade un **panel de Git** con commits redactados por IA.
   descartar cambios (con confirmación), copiar ruta y mostrar en el gestor de archivos.
 - Los archivos se agrupan **por carpeta**, plegables una a una, con contador y stage/unstage de
   la carpeta completa.
+- **Pre-commit** (OCA [`odoo-pre-commit-hooks`](https://github.com/OCA/odoo-pre-commit-hooks)):
+  estado junto al commit (`passed`, `failed`, `outdated`, `not configured`), botón para ejecutar
+  los hooks sobre lo staged y un informe con la salida, **Copy** y **Fix with agent** (abre un
+  draft con el informe). Si no hay `.pre-commit-config.yaml`, un botón crea uno con los hooks OCA.
 - **Commit** multilínea con contador, `Cmd/Ctrl+Enter` y botón 🧠 que **solo redacta** el
   mensaje leyendo el `git diff --staged` (modelo del compositor o el del servidor; si ninguno
   responde, escribe un mensaje básico con los archivos).
