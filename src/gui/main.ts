@@ -28,7 +28,7 @@ import { installOdoo, pipInstall, type InstallStep } from "../install"
 import { installSkillPack, skillPackStatus } from "../skillpack"
 import { addFolderToAddons, cloneRepository, isAuthFailure, sshFallback } from "../clone"
 import { inspectRepositories, reposUpdateLogPath, updateRepositories } from "../reposUpdate"
-import { preCommitInfo, runPreCommit, setupPreCommit, stagedDigest } from "../precommit"
+import { preCommitInfo, repositoryDigest, runPreCommit, setupPreCommit } from "../precommit"
 import { parseAheadBehind, parseGitBranches, parseGitLog, parseGitNumstat, parseGitStash, parseGitStatus } from "../git"
 import { removeVersion, readVersionMap, writeVersion } from "../versions"
 import { mergeRepos, parseEnvironmentRepos, repoFolder, sameCommit, sshUrl } from "../repos"
@@ -551,7 +551,10 @@ const setup: Plugin.MainSetup = (ctx) => {
   let pythonJob: PythonJob | undefined
   let rebuildJob: RebuildJob | undefined
   let moduleJob: ModuleJob | undefined
-  const preCommitLast = new Map<string, { state: "passed" | "failed"; at: number; digest: string }>()
+  const preCommitLast = new Map<
+    string,
+    { state: "passed" | "failed"; at: number; digest: string; scope: "staged" | "all" }
+  >()
 
   const adooStatus = (): AdooStatus => {
     const tokens = adooTokens.value
@@ -2319,28 +2322,47 @@ const setup: Plugin.MainSetup = (ctx) => {
       return { commits: parseGitLog(text) }
     },
 
-    preCommitStatus: async ({ directory, repository }) => {
+    preCommitStatus: async ({ directory, repository, scope }) => {
       const path = await gitRepository(directory, repository)
       if (!path) {
-        return { configured: false, oca: false, runner: "", state: "missing" as const, at: 0, outdated: false }
+        return {
+          configured: false,
+          oca: false,
+          runner: "",
+          state: "missing" as const,
+          scope,
+          at: 0,
+          outdated: false,
+        }
       }
       const info = await preCommitInfo(path)
       const last = preCommitLast.get(path)
-      const digest = await stagedDigest(path)
+      const digest = await repositoryDigest(path, scope)
+      const sameScope = last?.scope === scope
       return {
         ...info,
-        state: !info.configured ? ("missing" as const) : (last?.state ?? ("not-run" as const)),
-        at: last?.at ?? 0,
-        outdated: last !== undefined && digest !== "" && last.digest !== digest,
+        state: !info.configured
+          ? ("missing" as const)
+          : sameScope
+            ? (last?.state ?? ("not-run" as const))
+            : ("not-run" as const),
+        scope: last?.scope ?? scope,
+        at: sameScope ? (last?.at ?? 0) : 0,
+        outdated: sameScope && digest !== "" && last.digest !== digest,
       }
     },
 
-    preCommitRun: async ({ directory, repository }) => {
+    preCommitRun: async ({ directory, repository, scope }) => {
       const path = await gitRepository(directory, repository)
       if (!path) return { state: "error" as const, output: "Not a git repository", durationMs: 0 }
-      const result = await runPreCommit(path)
+      const result = await runPreCommit(path, scope)
       if (result.state === "passed" || result.state === "failed") {
-        preCommitLast.set(path, { state: result.state, at: Date.now(), digest: await stagedDigest(path) })
+        preCommitLast.set(path, {
+          state: result.state,
+          at: Date.now(),
+          digest: await repositoryDigest(path, scope),
+          scope,
+        })
       }
       return result
     },

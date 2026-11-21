@@ -255,6 +255,7 @@ export const PreCommitStatus = Schema.Struct({
   oca: Schema.Boolean,
   runner: Schema.String,
   state: Schema.Literals(["not-run", "passed", "failed", "missing", "error"]),
+  scope: Schema.Literals(["staged", "all"]),
   at: Schema.Number,
   outdated: Schema.Boolean,
 })
@@ -475,11 +476,19 @@ export const Odoo = Ipc.define({
       output: Schema.Struct({ text: Schema.String }),
     },
     preCommitStatus: {
-      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
+      input: Schema.Struct({
+        directory: Schema.String,
+        repository: Schema.String,
+        scope: Schema.Literals(["staged", "all"]),
+      }),
       output: PreCommitStatus,
     },
     preCommitRun: {
-      input: Schema.Struct({ directory: Schema.String, repository: Schema.String }),
+      input: Schema.Struct({
+        directory: Schema.String,
+        repository: Schema.String,
+        scope: Schema.Literals(["staged", "all"]),
+      }),
       output: PreCommitResult,
     },
     preCommitSetup: {

@@ -69,14 +69,29 @@ export async function preCommitInfo(root: string): Promise<PreCommitInfo> {
   }
 }
 
-/** A hash of the staged diff, used to tell whether the last run still applies. */
-export async function stagedDigest(root: string): Promise<string> {
+/** The files a run checks: staged changes only, or every file of the repository. */
+export type PreCommitScope = "staged" | "all"
+
+/** A hash of the files the selected scope would check, used to tell whether the last run still applies. */
+export async function repositoryDigest(root: string, scope: PreCommitScope = "staged"): Promise<string> {
+  if (scope === "all") {
+    const [diff, status] = await Promise.all([
+      runProcess("git", ["diff", "HEAD", "--no-ext-diff"], { cwd: root, timeoutMs: 60000 }),
+      runProcess("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: root, timeoutMs: 60000 }),
+    ])
+    if (diff.code !== 0) return ""
+    return createHash("sha1").update(`${status.output}\n${diff.output}`).digest("hex")
+  }
   const result = await runProcess("git", ["diff", "--staged", "--no-ext-diff"], { cwd: root, timeoutMs: 60000 })
   if (result.code !== 0) return ""
   return createHash("sha1").update(result.output).digest("hex")
 }
 
-export async function runPreCommit(root: string): Promise<PreCommitRun> {
+export async function stagedDigest(root: string): Promise<string> {
+  return repositoryDigest(root, "staged")
+}
+
+export async function runPreCommit(root: string, scope: PreCommitScope = "staged"): Promise<PreCommitRun> {
   if (!(await configFile(root))) {
     return {
       state: "missing",
@@ -95,7 +110,13 @@ export async function runPreCommit(root: string): Promise<PreCommitRun> {
   const started = Date.now()
   const result = await runProcess(
     available.file,
-    [...available.args, "run", "--color=never", "--show-diff-on-failure"],
+    [
+      ...available.args,
+      "run",
+      "--color=never",
+      "--show-diff-on-failure",
+      ...(scope === "all" ? ["--all-files"] : []),
+    ],
     { cwd: root, timeoutMs: 600000 },
   )
   return {

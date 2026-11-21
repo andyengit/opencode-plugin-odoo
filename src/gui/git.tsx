@@ -85,6 +85,7 @@ export function GitPanel(props: {
   const [hasContext, setHasContext] = createSignal(false)
   const [preStatus, setPreStatus] = createSignal<Awaited<ReturnType<OdooClient["preCommitStatus"]>> | undefined>()
   const [preOutput, setPreOutput] = createSignal("")
+  const [preScope, setPreScope] = createSignal<"staged" | "all">("staged")
   const [focused, setFocused] = createSignal(false)
   let messageArea: HTMLTextAreaElement | undefined
   let lastDirectory = props.directory
@@ -107,7 +108,7 @@ export function GitPanel(props: {
 
   const loadPreCommit = () =>
     void props.odoo
-      .preCommitStatus({ directory: props.directory, repository: repo() })
+      .preCommitStatus({ directory: props.directory, repository: repo(), scope: preScope() })
       .then(setPreStatus)
       .catch(() => setPreStatus(undefined))
 
@@ -181,6 +182,10 @@ export function GitPanel(props: {
       loadState()
       loadPreCommit()
     },
+  )
+  createKeyed(
+    () => preScope(),
+    () => loadPreCommit(),
   )
   createKeyed(
     () => `${repo()}\n${section()}`,
@@ -282,7 +287,7 @@ export function GitPanel(props: {
     if (busy()) return
     setBusy("precommit")
     const result = await props.odoo
-      .preCommitRun({ directory: props.directory, repository: repo() })
+      .preCommitRun({ directory: props.directory, repository: repo(), scope: preScope() })
       .catch((error: unknown) => ({ state: "error" as const, output: String(error), durationMs: 0 }))
     setBusy(undefined)
     setPreOutput(result.output)
@@ -1284,13 +1289,31 @@ export function GitPanel(props: {
                     </div>
 
                     <div class="flex flex-col gap-2 pt-1">
-                      <div class="flex items-center gap-1 px-1 text-[11px]">
+                      <div class="flex flex-wrap items-center gap-1 px-1 text-[11px]">
                         <span class="h-2 w-2 shrink-0 rounded-full" style={{ "background-color": preColor() }} />
                         <span class="flex-1 truncate opacity-70">{`${ctx.t("preCommit")} · ${preLabel()}`}</span>
                         <Show when={preOutput() !== ""}>
-                          <ctx.ui.Button size="small" variant="ghost" onClick={() => openPreReport(preOutput())}>
-                            {ctx.t("preCommitReport")}
-                          </ctx.ui.Button>
+                          <ctx.ui.Tooltip value={ctx.t("preCommitReport")}>
+                            <ctx.ui.IconButton
+                              icon="console"
+                              label={ctx.t("preCommitReport")}
+                              size="small"
+                              variant="ghost"
+                              onClick={() => openPreReport(preOutput())}
+                            />
+                          </ctx.ui.Tooltip>
+                        </Show>
+                        <Show when={preStatus()?.configured}>
+                          <ctx.ui.Select
+                            options={[
+                              { value: "staged", label: ctx.t("preCommitStaged") },
+                              { value: "all", label: ctx.t("preCommitAll") },
+                            ]}
+                            value={preScope()}
+                            onChange={(value) => setPreScope(value as "staged" | "all")}
+                            label={ctx.t("preCommitScope")}
+                            class="shrink-0"
+                          />
                         </Show>
                         <ctx.ui.Button
                           size="small"
@@ -1300,7 +1323,7 @@ export function GitPanel(props: {
                           disabled={busy() !== undefined && busy() !== "precommit"}
                           onClick={() => void (preStatus()?.configured ? runPreCommit() : installPreCommit())}
                         >
-                          {preStatus()?.configured ? ctx.t("preCommitRun") : ctx.t("preCommitInstall")}
+                          {preStatus()?.configured ? ctx.t("preCommitRunShort") : ctx.t("preCommitInstall")}
                         </ctx.ui.Button>
                       </div>
                       <textarea

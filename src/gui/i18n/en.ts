@@ -299,6 +299,10 @@ export default {
   gitDraftRules: "Follow these commit rules and project context:",
   preCommit: "Pre-commit",
   preCommitRun: "Run pre-commit",
+  preCommitRunShort: "Run",
+  preCommitScope: "Files",
+  preCommitStaged: "Staged",
+  preCommitAll: "All files",
   preCommitInstall: "Install OCA hooks",
   preCommitInstallHint:
     "Creates .pre-commit-config.yaml with OCA's odoo-pre-commit-hooks (oca-checks-odoo-module and oca-checks-po).",
