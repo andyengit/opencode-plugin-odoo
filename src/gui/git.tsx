@@ -458,7 +458,7 @@ export function GitPanel(props: {
       .catch(() => setUndoLog([]))
     ctx.dialogs.open((dialog) => (
       <ctx.ui.Dialog
-        title={ctx.t("gitUndo")}
+        title={ctx.t("gitUndoMany")}
         description={repoLabel(repo())}
         footer={
           <>
@@ -501,6 +501,16 @@ export function GitPanel(props: {
         </div>
       </ctx.ui.Dialog>
     ))
+  }
+
+  const undoOne = async () => {
+    const ok = await ctx.dialogs.confirm({
+      title: ctx.t("gitUndoOne"),
+      description: `${repoLabel(repo())}\n\n${ctx.t("gitUndoHint")}`,
+      confirm: ctx.t("gitUndoOne"),
+    })
+    if (!ok) return
+    await run("undo", () => props.odoo.gitUndo({ directory: props.directory, repository: repo(), count: 1 }))
   }
 
   const openDiff = (file: GitFile, stagedSide: boolean) => {
@@ -1080,7 +1090,13 @@ export function GitPanel(props: {
                 if (root && ctx.desktop) void ctx.desktop.reveal(root)
               },
             },
-            { label: ctx.t("gitUndo"), icon: "outline-undo", disabled: !state()?.head, onSelect: undoCommit },
+            {
+              label: ctx.t("gitUndoOne"),
+              icon: "outline-undo",
+              disabled: !state()?.head,
+              onSelect: () => void undoOne(),
+            },
+            { label: ctx.t("gitUndoMany"), icon: "outline-undo", disabled: !state()?.head, onSelect: undoCommit },
           ]}
         />
       </div>
@@ -1350,14 +1366,14 @@ export function GitPanel(props: {
                 <Show when={section() === "history"}>
                   <div class="flex items-center gap-1 pt-1">
                     <span class="flex-1 text-[11px] opacity-50 px-1">{ctx.t("gitHistory")}</span>
-                    <ctx.ui.Tooltip value={ctx.t("gitUndo")}>
+                    <ctx.ui.Tooltip value={ctx.t("gitUndoOne")}>
                       <ctx.ui.IconButton
                         icon="outline-undo"
-                        label={ctx.t("gitUndo")}
+                        label={ctx.t("gitUndoOne")}
                         size="small"
                         variant="ghost"
                         disabled={!value().head}
-                        onClick={undoCommit}
+                        onClick={() => void undoOne()}
                       />
                     </ctx.ui.Tooltip>
                     <ctx.ui.Tooltip value={ctx.t("refresh")}>

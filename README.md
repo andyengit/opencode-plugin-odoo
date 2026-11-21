@@ -77,8 +77,8 @@ agente y añade un **panel de Git** con commits redactados por IA.
   responde, escribe un mensaje básico con los archivos).
 - **Reglas de commit**: texto libre y/o archivo de skill/contexto por workspace que se añade
   al prompt de redacción (por ejemplo Conventional Commits, tipos, scopes e idioma).
-- **Historial** con detalle de cada commit y **undo** (`reset --soft HEAD~N`) con selector de
-  cuántos commits deshacer; los cambios quedan en Staged.
+- **Historial** con detalle de cada commit, **Soft reset HEAD~1** con confirmación y **Undo
+  commits…** (`reset --soft HEAD~N`) con selector; los cambios quedan en Staged.
 - Ramas: cambiar, crear desde otra, y **stash** (push / pop / apply / drop con confirmación).
 - Herramienta `git` para el agente: `repos`, `status`, `diff`, `stage`, `unstage`, `commit`,
   `checkout`, `create-branch`, `stash`.

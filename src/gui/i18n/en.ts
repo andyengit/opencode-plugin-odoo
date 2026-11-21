@@ -256,6 +256,8 @@ export default {
   gitDrafted: "Commit message written",
   gitDraftedBasic: "No model answered; wrote a basic message",
   gitUndo: "Undo last commit",
+  gitUndoOne: "Soft reset HEAD~1",
+  gitUndoMany: "Undo commits…",
   gitUndoCount: "Commits to undo",
   gitUndoHint: "The commits are removed and their changes stay staged.",
   gitHistory: "History",
