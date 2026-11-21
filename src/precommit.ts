@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto"
 import { access, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { runProcess } from "./execute"
 
 export const PRECOMMIT_CONFIG = `repos:
@@ -48,12 +48,40 @@ async function configFile(root: string): Promise<string | undefined> {
   return undefined
 }
 
+async function findUp(start: string, relative: string): Promise<string | undefined> {
+  let directory = start
+  for (;;) {
+    const candidate = join(directory, relative)
+    if (await exists(candidate)) return candidate
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+}
+
+/** The app's PATH can be smaller than a login shell's; installs usually live in these folders. */
+function runEnv(): NodeJS.ProcessEnv {
+  const bins = [join(homedir(), ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin"]
+  return { ...process.env, PATH: [...bins, process.env.PATH ?? ""].filter(Boolean).join(":") }
+}
+
 async function runner(root: string): Promise<{ file: string; args: string[]; label: "pre-commit" | "uvx" } | undefined> {
-  const direct = await runProcess("pre-commit", ["--version"], { cwd: root, timeoutMs: 15000 })
+  const candidates = [
+    await findUp(root, join(".venv", "bin", "pre-commit")),
+    join(homedir(), ".local", "bin", "pre-commit"),
+    join(homedir(), ".local", "share", "uv", "tools", "pre-commit", "bin", "pre-commit"),
+    join(homedir(), ".local", "pipx", "venvs", "pre-commit", "bin", "pre-commit"),
+    "/opt/homebrew/bin/pre-commit",
+    "/usr/local/bin/pre-commit",
+  ].filter((path): path is string => typeof path === "string")
+  for (const file of candidates) {
+    if (await exists(file)) return { file, args: [], label: "pre-commit" }
+  }
+  const direct = await runProcess("pre-commit", ["--version"], { cwd: root, timeoutMs: 15000, env: runEnv() })
   if (direct.code === 0) return { file: "pre-commit", args: [], label: "pre-commit" }
   const uvx = join(homedir(), ".local", "bin", "uvx")
   if (await exists(uvx)) return { file: uvx, args: ["pre-commit"], label: "uvx" }
-  const pathUvx = await runProcess("uvx", ["--version"], { cwd: root, timeoutMs: 15000 })
+  const pathUvx = await runProcess("uvx", ["--version"], { cwd: root, timeoutMs: 15000, env: runEnv() })
   if (pathUvx.code === 0) return { file: "uvx", args: ["pre-commit"], label: "uvx" }
   return undefined
 }
@@ -117,7 +145,7 @@ export async function runPreCommit(root: string, scope: PreCommitScope = "staged
       "--show-diff-on-failure",
       ...(scope === "all" ? ["--all-files"] : []),
     ],
-    { cwd: root, timeoutMs: 600000 },
+    { cwd: root, timeoutMs: 600000, env: runEnv() },
   )
   return {
     state: result.code === 0 ? "passed" : "failed",
