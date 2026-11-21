@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { homedir } from "node:os"
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { loadSkillPack, packRoots, parseFrontmatter, parseSkill, pluginRoot, skillInfo, virtualSkill } from "../src/skills"
 
@@ -64,6 +65,17 @@ describe("loadSkillPack", () => {
     const roots = packRoots(undefined, "/project")
     expect(roots[0]).toBe("/project/.agents/skills")
     expect(roots).toContain(join(homedir(), ".agents", "skills"))
+  })
+
+  test("keeps one skill per id when a pack is present twice", async () => {
+    const root = await mkdtemp(join(tmpdir(), "odoo-skills-dup-"))
+    for (const parent of ["a", "b"]) {
+      await mkdir(join(root, parent, "dup"), { recursive: true })
+      await writeFile(join(root, parent, "dup", "SKILL.md"), `---\nname: dup\n---\n# Dup ${parent}\n`)
+    }
+    const skills = await loadSkillPack(root)
+    expect(skills).toHaveLength(1)
+    expect(skills[0]?.id).toBe("dup")
   })
 })
 

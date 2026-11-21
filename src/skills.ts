@@ -133,7 +133,12 @@ export async function loadSkillPack(custom?: string, workspaceRoot?: string): Pr
       const skill = parseSkill(basename(dirname(path)), path, text)
       if (skill) skills.push(skill)
     }
-    if (skills.length > 0) return skills.sort((a, b) => a.id.localeCompare(b.id))
+    if (skills.length > 0) {
+      // The same pack can be present twice (a project copy and a clone); keep one skill per id.
+      const unique = new Map<string, SkillFile>()
+      for (const skill of skills) if (!unique.has(skill.id)) unique.set(skill.id, skill)
+      return [...unique.values()].sort((a, b) => a.id.localeCompare(b.id))
+    }
   }
   return []
 }
