@@ -238,6 +238,8 @@ export default {
   gitNoDiff: "No diff to show",
   gitStage: "Stage",
   gitUnstage: "Unstage",
+  gitStageFolder: "Stage folder",
+  gitUnstageFolder: "Unstage folder",
   gitStageAll: "Stage all",
   gitUnstageAll: "Unstage all",
   gitClean: "No changes",

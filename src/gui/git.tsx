@@ -3,6 +3,7 @@ import { createKeyed, usePlugin } from "@opencode/plugin/gui"
 import { draftCommitMessage } from "../git"
 import type { GitFile, GitState, OdooClient } from "./contract"
 import { CloneRepoDialog } from "./clone"
+import { buildFileTree, folderFiles, type FolderNode } from "../gitTree"
 
 const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
@@ -80,6 +81,7 @@ export function GitPanel(props: {
   >([])
   const [openStaged, setOpenStaged] = createSignal(true)
   const [openChanges, setOpenChanges] = createSignal(true)
+  const [expandedFolders, setExpandedFolders] = createSignal<Record<string, boolean>>({})
   const [hasContext, setHasContext] = createSignal(false)
   const [focused, setFocused] = createSignal(false)
   let messageArea: HTMLTextAreaElement | undefined
@@ -111,6 +113,7 @@ export function GitPanel(props: {
     setRepo(path)
     setMessage(next[draftKey(path)] ?? "")
     setState(undefined)
+    setExpandedFolders({})
     props.remember(props.directory, path)
   }
 
@@ -205,6 +208,22 @@ export function GitPanel(props: {
         ? props.odoo.gitUnstage({ directory: props.directory, repository: repo(), paths: [file.path] })
         : props.odoo.gitStage({ directory: props.directory, repository: repo(), paths: [file.path] }),
     )
+
+  const folderKey = (stagedSide: boolean, path: string) => `${stagedSide ? "s" : "w"}:${path}`
+  const folderOpen = (stagedSide: boolean, path: string) => expandedFolders()[folderKey(stagedSide, path)] === true
+  const toggleFolder = (stagedSide: boolean, path: string) => {
+    const key = folderKey(stagedSide, path)
+    setExpandedFolders((current) => ({ ...current, [key]: !current[key] }))
+  }
+  const runFolder = (node: FolderNode<GitFile>, stagedSide: boolean) => {
+    const paths = folderFiles(node).map((file) => file.path)
+    if (paths.length === 0) return
+    return run(`folder-${stagedSide ? "unstage" : "stage"}:${node.path}`, () =>
+      stagedSide
+        ? props.odoo.gitUnstage({ directory: props.directory, repository: repo(), paths })
+        : props.odoo.gitStage({ directory: props.directory, repository: repo(), paths }),
+    )
+  }
 
   const commit = () =>
     run("commit", async () => {
@@ -751,11 +770,14 @@ export function GitPanel(props: {
     })
   }
 
-  const fileRow = (file: GitFile, stagedSide: boolean) => {
+  const fileRow = (file: GitFile, stagedSide: boolean, depth = 0) => {
     const parts = splitPath(file.path)
     const stat = () => statFor(file, stagedSide)
     return (
-      <div class="group flex items-center gap-1 rounded px-1 py-1 text-xs hover:bg-v2-background-bg-layer-02">
+      <div
+        class="group flex items-center gap-1 rounded pr-1 py-1 text-xs hover:bg-v2-background-bg-layer-02"
+        style={{ "padding-left": `${4 + depth * 12}px` }}
+      >
         <span class="w-5 shrink-0 text-[11px] font-medium" style={{ color: codeColor(file.code) }}>
           {file.code}
         </span>
@@ -815,6 +837,59 @@ export function GitPanel(props: {
           ]}
         />
       </div>
+    )
+  }
+
+  const folderRow = (node: FolderNode<GitFile>, stagedSide: boolean, depth: number) => {
+    const count = folderFiles(node).length
+    return (
+      <div
+        class="flex items-center gap-1 rounded pr-1 py-1 text-xs hover:bg-v2-background-bg-layer-02"
+        style={{ "padding-left": `${4 + depth * 12}px` }}
+      >
+        <button
+          type="button"
+          class="flex min-w-0 flex-1 items-center gap-1 text-left"
+          onClick={() => toggleFolder(stagedSide, node.path)}
+        >
+          <ctx.ui.Icon name={folderOpen(stagedSide, node.path) ? "chevron-down" : "chevron-right"} size="small" />
+          <ctx.ui.Icon name="folder" size="small" />
+          <span class="truncate opacity-80" style={{ "font-family": "var(--font-family-mono, monospace)" }}>
+            {`${node.name}/`}
+          </span>
+          <span class="shrink-0 text-[11px] opacity-40">{count}</span>
+        </button>
+        <ctx.ui.Tooltip value={stagedSide ? ctx.t("gitUnstageFolder") : ctx.t("gitStageFolder")}>
+          <ctx.ui.IconButton
+            icon={stagedSide ? "minus" : "plus"}
+            label={stagedSide ? ctx.t("gitUnstageFolder") : ctx.t("gitStageFolder")}
+            size="small"
+            variant="ghost"
+            busy={busy() === `folder-${stagedSide ? "unstage" : "stage"}:${node.path}`}
+            onClick={() => void runFolder(node, stagedSide)}
+          />
+        </ctx.ui.Tooltip>
+      </div>
+    )
+  }
+
+  const renderFolder = (node: FolderNode<GitFile>, stagedSide: boolean, depth: number) => (
+    <>
+      {folderRow(node, stagedSide, depth)}
+      <Show when={folderOpen(stagedSide, node.path)}>
+        <For each={node.folders}>{(child) => renderFolder(child, stagedSide, depth + 1)}</For>
+        <For each={node.files}>{(file) => fileRow(file, stagedSide, depth + 1)}</For>
+      </Show>
+    </>
+  )
+
+  const renderTree = (files: GitFile[], stagedSide: boolean) => {
+    const tree = buildFileTree(files)
+    return (
+      <>
+        <For each={tree.folders}>{(node) => renderFolder(node, stagedSide, 0)}</For>
+        <For each={tree.files}>{(file) => fileRow(file, stagedSide, 0)}</For>
+      </>
     )
   }
 
@@ -1009,7 +1084,7 @@ export function GitPanel(props: {
                           fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("gitNoStaged")}</span>}
                         >
                           <div class="flex flex-col gap-0.5">
-                            <For each={staged()}>{(file) => fileRow(file, true)}</For>
+                            {renderTree(staged(), true)}
                           </div>
                         </Show>
                       </Show>
@@ -1045,7 +1120,7 @@ export function GitPanel(props: {
                           fallback={<span class="text-[11px] opacity-40 px-1">{ctx.t("gitClean")}</span>}
                         >
                           <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                            <For each={changes()}>{(file) => fileRow(file, false)}</For>
+                            {renderTree(changes(), false)}
                           </div>
                         </Show>
                       </Show>
