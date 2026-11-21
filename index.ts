@@ -109,7 +109,7 @@ async function reposOf(root: string): Promise<Array<{ path: string; branch: stri
       const path = join(base, org.name, entry.name)
       if (!(await exists(join(path, ".git")))) continue
       const branch = await tryRun("git", ["-C", path, "rev-parse", "--abbrev-ref", "HEAD"])
-      const status = await tryRun("git", ["-C", path, "status", "--porcelain"])
+      const status = await tryRun("git", ["-C", path, "status", "--porcelain", "--untracked-files=all"])
       repos.push({
         path: `${org.name}/${entry.name}`,
         branch,
@@ -140,7 +140,7 @@ async function gitReposOf(root: string): Promise<Array<{ path: string; branch: s
       if (!(await exists(join(candidate.path, ".git")))) return undefined
       const [branch, status] = await Promise.all([
         tryRun("git", ["-C", candidate.path, "rev-parse", "--abbrev-ref", "HEAD"]),
-        tryRun("git", ["-C", candidate.path, "status", "--porcelain"]),
+        tryRun("git", ["-C", candidate.path, "status", "--porcelain", "--untracked-files=all"]),
       ])
       return { path: candidate.name, branch, changed: parseGitStatus(status).length }
     }),
@@ -678,7 +678,7 @@ export default Plugin.define({
           if (input.action === "status") {
             const [branch, status, stash] = await Promise.all([
               gitIn(path, ["rev-parse", "--abbrev-ref", "HEAD"]),
-              gitIn(path, ["status", "--porcelain"]),
+              gitIn(path, ["status", "--porcelain", "--untracked-files=all"]),
               gitIn(path, ["stash", "list", "--format=%gd%x09%s"]),
             ])
             return {

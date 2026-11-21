@@ -2140,7 +2140,7 @@ const setup: Plugin.MainSetup = (ctx) => {
                   ? ("same" as const)
                   : ("different" as const)
           const localBranch = head === "" ? "" : await gitText(["rev-parse", "--abbrev-ref", "HEAD"], folder.path)
-          const status = head === "" ? "" : await gitText(["status", "--porcelain"], folder.path)
+          const status = head === "" ? "" : await gitText(["status", "--porcelain", "--untracked-files=all"], folder.path)
           const changed = status === "" ? 0 : status.split("\n").filter((line) => line.trim() !== "").length
           const requirements = await repoRequirements(folder.path)
           return {
@@ -2168,7 +2168,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         return { branch: "", files: [], diff: "" }
       }
       const branch = await gitText(["rev-parse", "--abbrev-ref", "HEAD"], path)
-      const status = await gitText(["status", "--porcelain"], path)
+      const status = await gitText(["status", "--porcelain", "--untracked-files=all"], path)
       const files = status
         .split("\n")
         .filter((line) => line.trim() !== "")
@@ -2198,7 +2198,7 @@ const setup: Plugin.MainSetup = (ctx) => {
       const repos = await Promise.all(
         candidates.map(async (candidate) => {
           if (!(await pathExists(join(candidate.path, ".git")))) return undefined
-          const status = await gitText(["status", "--porcelain"], candidate.path)
+          const status = await gitText(["status", "--porcelain", "--untracked-files=all"], candidate.path)
           return { path: candidate.name, changed: parseGitStatus(status).length }
         }),
       )
@@ -2228,7 +2228,7 @@ const setup: Plugin.MainSetup = (ctx) => {
         gitText(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], path),
         gitText(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], path),
         gitText(["for-each-ref", "--format=%(refname:short)", "refs/heads"], path),
-        gitText(["status", "--porcelain"], path),
+        gitText(["status", "--porcelain", "--untracked-files=all"], path),
         gitText(["stash", "list", "--format=%gd%x09%s"], path),
         gitText(["diff", "--cached", "--numstat"], path),
         gitText(["diff", "--numstat"], path),
