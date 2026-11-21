@@ -305,6 +305,14 @@ function cloneUrl(repo: SyncRepo): string {
   return sshUrl(repo.url) ?? repo.url
 }
 
+/** A push rejected because the remote moved is reported as something the user can act on. */
+function pushError(failure: string): string {
+  if (/\[rejected\]|non-fast-forward|fetch first|failed to push/i.test(failure)) {
+    return `Push rejected: the remote has newer commits. Pull first, then push.\n${failure}`
+  }
+  return failure
+}
+
 function summarize(workspace: OdooWorkspace): WorkspaceSummary {
   return {
     root: workspace.root,
@@ -2401,12 +2409,19 @@ const setup: Plugin.MainSetup = (ctx) => {
           return `Diverged: ${counts.ahead} ahead and ${counts.behind} behind. Pull needs a manual merge or rebase`
         return (await git(["pull", "--ff-only"], path)) ?? "Pulled"
       }
-      if (upstream !== "") return (await git(["push"], path)) ?? "Pushed"
-      // Without an upstream, only an unambiguous remote can be chosen for the first push.
+      if (upstream !== "") {
+        const failure = await git(["push"], path)
+        return failure ? pushError(failure) : "Pushed"
+      }
+      // Without an upstream, prefer origin; otherwise a single remote is unambiguous.
       const remotes = parseGitBranches(await gitText(["remote"], path))
       if (remotes.length === 0) return "This repository has no remote. Add one with git remote add origin <url>"
-      if (remotes.length > 1) return "This branch has no upstream and the repository has several remotes"
-      return (await git(["push", "-u", remotes[0] ?? "origin", branch], path)) ?? `Pushed ${branch} to ${remotes[0]}`
+      const remote = remotes.includes("origin") ? "origin" : remotes.length === 1 ? (remotes[0] ?? "") : ""
+      if (remote === "") {
+        return "This branch has no upstream and the repository has several remotes; set one with git push -u <remote> <branch>"
+      }
+      const failure = await git(["push", "-u", remote, branch], path)
+      return failure ? pushError(failure) : `Pushed ${branch} to ${remote}`
     },
 
     gitDiscard: async ({ directory, repository, paths, untracked }) => {
