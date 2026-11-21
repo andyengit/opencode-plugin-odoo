@@ -2295,8 +2295,17 @@ const setup: Plugin.MainSetup = (ctx) => {
     gitStagedDiff: async ({ directory, repository }) => {
       const repositoryPath = await gitRepository(directory, repository)
       if (!repositoryPath) return { diff: "" }
-      const diff = await gitText(["diff", "--staged"], repositoryPath)
-      return { diff: diff.slice(0, 16000) }
+      const [stat, raw] = await Promise.all([
+        gitText(["diff", "--staged", "--stat"], repositoryPath),
+        gitText(["diff", "--staged", "--no-ext-diff"], repositoryPath),
+      ])
+      // Keep every file in the stat, and a generous slice of the patch: a small cap used to hide files.
+      const limit = 120000
+      const body =
+        raw.length > limit
+          ? `${raw.slice(0, limit)}\n\n[diff truncated after ${limit} characters of ${raw.length}; the stat above lists every staged file]`
+          : raw
+      return { diff: [stat, body].filter((part) => part !== "").join("\n\n") }
     },
 
     gitUndo: async ({ directory, repository, count }) => {
