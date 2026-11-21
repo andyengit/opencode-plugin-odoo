@@ -2337,7 +2337,8 @@ const setup: Plugin.MainSetup = (ctx) => {
       if (upstream !== "") return (await git(["push"], path)) ?? "Pushed"
       // Without an upstream, only an unambiguous remote can be chosen for the first push.
       const remotes = parseGitBranches(await gitText(["remote"], path))
-      if (remotes.length !== 1) return "This branch has no upstream and the repository has several remotes"
+      if (remotes.length === 0) return "This repository has no remote. Add one with git remote add origin <url>"
+      if (remotes.length > 1) return "This branch has no upstream and the repository has several remotes"
       return (await git(["push", "-u", remotes[0] ?? "origin", branch], path)) ?? `Pushed ${branch} to ${remotes[0]}`
     },
 
