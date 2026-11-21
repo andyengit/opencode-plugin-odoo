@@ -98,7 +98,7 @@ agente y añade un **panel de Git** con commits redactados por IA.
 
 El panel lateral se organiza en secciones (barra superior del panel):
 
-- **Home** — estado del workspace, Postgres, entorno activo (start/stop/restart/log/URL), instalación de versiones y **Debug**.
+- **Home** — estado del workspace, Postgres, entorno activo (start/stop/restart/log/URL), URL con `?debug=assets` para desarrollo de assets, instalación de versiones y **Debug**.
 - **Configuration** — `odoo.conf` (valores, secciones como `[queue_job]`, opciones añadidas), addons con requisitos, Python del venv y paquetes.
 - **Modules** — módulos de la base elegida: instalar, actualizar y ejecutar tests.
 - **Database** — bases locales (tamaño y filestore), crear con/sin demo, duplicar, borrar, backup y restore.

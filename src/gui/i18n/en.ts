@@ -33,6 +33,7 @@ export default {
   dbDemo: "Demo data",
   dbDemoHint: "Install the base module with demo data when the database is created.",
   debug: "Debug",
+  debugAssets: "Open with debug assets",
   debugHint:
     "Starts Odoo under debugpy on 127.0.0.1:5678 and adds an \"Odoo: attach\" configuration to .vscode/launch.json.",
   debugStart: "Start with debugger",

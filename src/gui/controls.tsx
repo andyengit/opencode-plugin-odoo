@@ -605,6 +605,19 @@ export default function OdooControls(props: { odoo: OdooClient; directory: strin
                           >
                             {`http://localhost:${workspace().activeHttpPort}`}
                           </ctx.ui.Button>
+                          <ctx.ui.Tooltip value={ctx.t("debugAssets")}>
+                            <ctx.ui.IconButton
+                              icon="code-lines"
+                              label={ctx.t("debugAssets")}
+                              size="small"
+                              variant="ghost"
+                              onClick={() =>
+                                ctx.system.openExternal(
+                                  `http://localhost:${workspace().activeHttpPort}/web?debug=assets`,
+                                )
+                              }
+                            />
+                          </ctx.ui.Tooltip>
                         </Show>
                       </div>
                     )
