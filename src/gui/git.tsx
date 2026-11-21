@@ -1066,6 +1066,16 @@ export function GitPanel(props: {
             </span>
           </Show>
         </ctx.ui.Button>
+        <ctx.ui.Tooltip value={ctx.t("gitUndoOne")}>
+          <ctx.ui.IconButton
+            icon="outline-undo"
+            label={ctx.t("gitUndoOne")}
+            size="small"
+            variant="ghost"
+            disabled={!state()?.head}
+            onClick={() => void undoOne()}
+          />
+        </ctx.ui.Tooltip>
         <ctx.ui.Tooltip value={ctx.t("refresh")}>
           <ctx.ui.IconButton
             icon="outline-rotate-clockwise"
@@ -1389,16 +1399,15 @@ export function GitPanel(props: {
                 <Show when={section() === "history"}>
                   <div class="flex items-center gap-1 pt-1">
                     <span class="flex-1 text-[11px] opacity-50 px-1">{ctx.t("gitHistory")}</span>
-                    <ctx.ui.Tooltip value={ctx.t("gitUndoOne")}>
-                      <ctx.ui.IconButton
-                        icon="outline-undo"
-                        label={ctx.t("gitUndoOne")}
-                        size="small"
-                        variant="ghost"
-                        disabled={!value().head}
-                        onClick={() => void undoOne()}
-                      />
-                    </ctx.ui.Tooltip>
+                    <ctx.ui.Button
+                      size="small"
+                      variant="ghost"
+                      icon="outline-undo"
+                      disabled={!value().head}
+                      onClick={() => void undoOne()}
+                    >
+                      {ctx.t("gitUndoOne")}
+                    </ctx.ui.Button>
                     <ctx.ui.Tooltip value={ctx.t("refresh")}>
                       <ctx.ui.IconButton
                         icon="outline-rotate-clockwise"
