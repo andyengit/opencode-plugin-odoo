@@ -273,6 +273,9 @@ export default {
   copied: "Copied",
   gitReveal: "Show in file manager",
   gitDiscard: "Discard changes",
+  gitDiscardFolder: "Discard folder",
+  gitDiscardFolderHint:
+    "Restores the tracked files and deletes the untracked files under this folder. This cannot be undone.",
   gitDiscardHint: "The changes in this file are lost.",
   gitDiscardUntrackedHint: "The file is deleted from disk.",
   gitNew: "new",

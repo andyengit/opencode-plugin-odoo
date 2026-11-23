@@ -2446,6 +2446,24 @@ const setup: Plugin.MainSetup = (ctx) => {
       return (await git(args, path)) ?? (untracked ? "Discarded untracked files" : "Discarded changes")
     },
 
+    gitDiscardMany: async ({ directory, repository, tracked, untracked }) => {
+      const path = await gitRepository(directory, repository)
+      if (!path) return "Not a git repository"
+      if (tracked.length === 0 && untracked.length === 0) return "Choose the files to discard"
+      const failures: string[] = []
+      if (tracked.length > 0) {
+        const failure = await git(["restore", "--staged", "--worktree", "--", ...tracked], path)
+        if (failure) failures.push(failure)
+      }
+      if (untracked.length > 0) {
+        const failure = await git(["clean", "-f", "-d", "--", ...untracked], path)
+        if (failure) failures.push(failure)
+      }
+      if (failures.length > 0) return failures.join(" ")
+      const total = tracked.length + untracked.length
+      return `Discarded ${total} path${total === 1 ? "" : "s"}`
+    },
+
     gitShow: async ({ directory, repository, hash }) => {
       const path = await gitRepository(directory, repository)
       if (!path) return { stat: "", diff: "" }

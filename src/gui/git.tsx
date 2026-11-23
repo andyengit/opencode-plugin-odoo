@@ -398,6 +398,29 @@ export function GitPanel(props: {
     )
   }
 
+  const discardFolder = async (node: FolderNode<GitFile>) => {
+    const prefix = `${node.path}/`
+    const files = (state()?.files ?? []).filter((file) => file.path === node.path || file.path.startsWith(prefix))
+    const tracked = [...new Set(files.filter((file) => !file.untracked).map((file) => file.path))]
+    const untracked = [...new Set(files.filter((file) => file.untracked).map((file) => file.path))]
+    if (tracked.length === 0 && untracked.length === 0) return
+    const ok = await ctx.dialogs.confirm({
+      title: ctx.t("gitDiscardFolder"),
+      description: `${node.path}\n\n${ctx.t("gitDiscardFolderHint")}`,
+      confirm: ctx.t("gitDiscardFolder"),
+      danger: true,
+    })
+    if (!ok) return
+    await run(`folder-discard:${node.path}`, () =>
+      props.odoo.gitDiscardMany({
+        directory: props.directory,
+        repository: repo(),
+        tracked,
+        untracked,
+      }),
+    )
+  }
+
   // Writes the message into the field; committing stays the user's call.
   const draftMessage = async () => {
     const session = ctx.sessions.current()
@@ -990,6 +1013,16 @@ export function GitPanel(props: {
           </span>
           <span class="shrink-0 text-[11px] opacity-40">{count}</span>
         </button>
+        <ctx.ui.Tooltip value={ctx.t("gitDiscardFolder")}>
+          <ctx.ui.IconButton
+            icon="trash"
+            label={ctx.t("gitDiscardFolder")}
+            size="small"
+            variant="ghost"
+            busy={busy() === `folder-discard:${node.path}`}
+            onClick={() => void discardFolder(node)}
+          />
+        </ctx.ui.Tooltip>
         <ctx.ui.Tooltip value={stagedSide ? ctx.t("gitUnstageFolder") : ctx.t("gitStageFolder")}>
           <ctx.ui.IconButton
             icon={stagedSide ? "minus" : "plus"}

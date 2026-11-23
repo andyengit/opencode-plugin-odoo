@@ -696,6 +696,15 @@ export const Odoo = Ipc.define({
       }),
       output: Schema.String,
     },
+    gitDiscardMany: {
+      input: Schema.Struct({
+        directory: Schema.String,
+        repository: Schema.String,
+        tracked: Schema.Array(Schema.String),
+        untracked: Schema.Array(Schema.String),
+      }),
+      output: Schema.String,
+    },
     gitShow: {
       input: Schema.Struct({ directory: Schema.String, repository: Schema.String, hash: Schema.String }),
       output: Schema.Struct({ stat: Schema.String, diff: Schema.String }),

@@ -66,8 +66,9 @@ agente y añade un **panel de Git** con commits redactados por IA.
 - Secciones **Cambios**, **Historial** y **Stash**, con refresco automático del repo activo.
 - Stage/unstage por archivo y en bloque, stats `+/-`, diff coloreado con ajuste de línea,
   descartar cambios (con confirmación), copiar ruta y mostrar en el gestor de archivos.
-- Los archivos se agrupan **por carpeta**, plegables una a una, con contador y stage/unstage de
-  la carpeta completa.
+- Los archivos se agrupan **por carpeta**, plegables una a una, con contador, stage/unstage y
+  **descartar carpeta completa** (restaura tracked y elimina untracked) además del descarte por
+  archivo.
 - **Pre-commit** (OCA [`odoo-pre-commit-hooks`](https://github.com/OCA/odoo-pre-commit-hooks)):
   estado junto al commit (`passed`, `failed`, `outdated`, `not configured`), selector para
   ejecutar los hooks **solo sobre lo staged** o **sobre todo el repositorio**, y un informe con
